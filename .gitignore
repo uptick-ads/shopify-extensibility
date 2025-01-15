@@ -1,0 +1,17 @@
+# Dependency directory
+node_modules
+
+# Test coverage directory
+coverage
+
+# Ignore Apple macOS Desktop Services Store
+.DS_Store
+
+# Logs
+logs
+*.log
+
+# lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml

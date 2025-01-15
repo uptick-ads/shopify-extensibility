@@ -1,0 +1,23 @@
+{
+  "name": "@uptick-ads/shopify-extensibility",
+  "version": "1.0.0",
+  "description": "A Shopify Checkout UI Extensibility utility package that provides an interface to dynamically load and displays Uptick offers. Easily integrates into existing Shopify Checkout UI apps for seamless upsell and cross-sell experiences.",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/uptick-ads/shopify-extensibility.git"
+  },
+  "keywords": [
+    "Shopify",
+    "Uptick"
+  ],
+  "author": "Uptick",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/uptick-ads/shopify-extensibility/issues"
+  },
+  "homepage": "https://github.com/uptick-ads/shopify-extensibility#readme"
+}

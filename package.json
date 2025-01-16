@@ -23,7 +23,7 @@
     "url": "https://github.com/uptick-ads/shopify-extensibility/issues"
   },
   "homepage": "https://github.com/uptick-ads/shopify-extensibility#readme",
-  "dependencies": {
+  "peerDependencies": {
     "react": ">=18.0.0",
     "@shopify/ui-extensions": ">=2024.7.0",
     "@shopify/ui-extensions-react": ">=2024.7.0"

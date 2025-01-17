@@ -63,7 +63,7 @@ function createApi(includeShopApi = true, { integrationId = null } = {}) {
 
 function generateFlowURL(api, placement, integrationID = null) {
   if (isPresent(integrationID)) {
-    expect(api.flowURL).toBe(`https://api.uptick.com/v1/places/${integrationID}/flows/new`);
+    expect(api.flowURL).toBe(`https://api.uptick.com/v2/places/${integrationID}/flows/new`);
   } else {
     expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
   }
@@ -127,6 +127,18 @@ describe("api", () => {
 
     test("sets defaults with integrationId on constructor", async () => {
       let api = new Api({ integrationId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" });
+
+      // These are all the same for test or development
+      expect(api.baseURL).toBe("https://api.uptick.com");
+      expect(api.flowURL).toBe("https://api.uptick.com/v2/places/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/flows/new");
+      expect(api.captureException).toBeDefined();
+      expect(api.captureWarning).toBeDefined();
+      expect(api.setLoading).toBeDefined();
+      expect(api.flow).toBeNull();
+    });
+
+    test("sets defaults with integrationId for v1 on constructor", async () => {
+      let api = new Api({ integrationId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE", apiVersion: "v1" });
 
       // These are all the same for test or development
       expect(api.baseURL).toBe("https://api.uptick.com");

@@ -5,10 +5,21 @@ export default class Api {
     integrationId = null,
     captureWarning = null,
     captureException = null,
+    apiVersion = "v2",
     baseURL = "https://api.uptick.com"
   } = {}) {
     if (isEmpty(baseURL)) {
       throw new Error("baseURL is required.");
+    }
+
+    if (isPresent(integrationId)) {
+      if (isEmpty(apiVersion)) {
+        throw new Error("apiVersion is required when integrationId is present.");
+      }
+
+      if (apiVersion !== "v1" && apiVersion !== "v2") {
+        throw new Error("apiVersion must be v1 or v2.");
+      }
     }
 
     // Initialize default functions
@@ -26,7 +37,7 @@ export default class Api {
     this.baseURL = baseURL;
 
     if (isPresent(integrationId)) {
-      this.flowURL = `${this.baseURL}/v1/places/${integrationId}/flows/new`;
+      this.flowURL = `${this.baseURL}/${apiVersion}/places/${integrationId}/flows/new`;
     } else {
       this.flowURL = `${this.baseURL}/places/flows/shopify`;
     }

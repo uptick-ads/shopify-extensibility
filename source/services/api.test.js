@@ -7,10 +7,11 @@ import {
 } from "@jest/globals";
 import Api from "./api";
 import merge from "deepmerge";
+import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
 
-function createApi(includeShopApi = true) {
+function createApi(includeShopApi = true, { integrationId = null } = {}) {
   const shopApi = {
     shop: {
       id: "shopid",
@@ -45,6 +46,7 @@ function createApi(includeShopApi = true) {
   };
 
   const api = new Api({
+    integrationId: integrationId,
     captureException: jest.fn((x) => x),
     captureWarning: jest.fn((x) => x)
   });
@@ -59,8 +61,12 @@ function createApi(includeShopApi = true) {
   return api;
 }
 
-function generateFlowURL(api, placement) {
-  expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
+function generateFlowURL(api, placement, integrationID = null) {
+  if (isPresent(integrationID)) {
+    expect(api.flowURL).toBe(`https://api.uptick.com/v1/places/${integrationID}/flows/new`);
+  } else {
+    expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
+  }
 
   const url = new URL(api.flowURL);
   url.searchParams.set("api_versions[]", "v1");
@@ -111,6 +117,7 @@ describe("api", () => {
       let api = new Api();
 
       // These are all the same for test or development
+      expect(api.baseURL).toBe("https://api.uptick.com");
       expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
       expect(api.captureException).toBeDefined();
       expect(api.captureWarning).toBeDefined();
@@ -118,10 +125,22 @@ describe("api", () => {
       expect(api.flow).toBeNull();
     });
 
-    test("raises error when flowURL is missing", async () => {
+    test("sets defaults with integrationId on constructor", async () => {
+      let api = new Api({ integrationId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" });
+
+      // These are all the same for test or development
+      expect(api.baseURL).toBe("https://api.uptick.com");
+      expect(api.flowURL).toBe("https://api.uptick.com/v1/places/AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE/flows/new");
+      expect(api.captureException).toBeDefined();
+      expect(api.captureWarning).toBeDefined();
+      expect(api.setLoading).toBeDefined();
+      expect(api.flow).toBeNull();
+    });
+
+    test("raises error when baseURL is missing", async () => {
       expect(() => {
-        new Api({ flowURL: "" });
-      }).toThrow("flowURL is required.");
+        new Api({ baseURL: "" });
+      }).toThrow("baseURL is required.");
     });
 
     test("can set properties", async () => {
@@ -262,6 +281,31 @@ describe("api", () => {
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
       expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
+      expect(api.getOfferBase).toHaveBeenCalledTimes(1);
+
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
+    test("with integrationID if flow response is valid calls getOfferBase", async () => {
+      const api = createApi(true, { integrationId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" });
+      const returnResult = {
+        links: {
+          next_offer: "flow_url"
+        }
+      };
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+      jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+
+      const result = await api.getInitialOffer("order_confirmation");
+      expect(result).toBe("offer");
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"), { method: undefined, setLoader: api.noop });
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
       expect(api.getOfferBase).toHaveBeenCalledTimes(1);

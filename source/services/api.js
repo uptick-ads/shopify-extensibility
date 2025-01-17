@@ -2,12 +2,13 @@ import { isEmpty, isPresent } from "../utilities/present.js";
 
 export default class Api {
   constructor({
+    integrationId = null,
     captureWarning = null,
     captureException = null,
-    flowURL = "https://api.uptick.com/places/flows/shopify"
+    baseURL = "https://api.uptick.com"
   } = {}) {
-    if (isEmpty(flowURL)) {
-      throw new Error("flowURL is required.");
+    if (isEmpty(baseURL)) {
+      throw new Error("baseURL is required.");
     }
 
     // Initialize default functions
@@ -22,7 +23,14 @@ export default class Api {
     // Set variables from constructor
     this.captureException = captureException;
     this.captureWarning = captureWarning;
-    this.flowURL = flowURL;
+    this.baseURL = baseURL;
+
+    if (isPresent(integrationId)) {
+      this.flowURL = `${this.baseURL}/v1/places/${integrationId}/flows/new`;
+    } else {
+      this.flowURL = `${this.baseURL}/places/flows/shopify`;
+    }
+
     // Set defaults
     this.noop = () => {};
     this.setLoading = this.noop;

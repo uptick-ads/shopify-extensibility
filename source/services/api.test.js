@@ -25,6 +25,11 @@ function createApi(includeShopApi = true, { integrationId = null } = {}) {
         zip: "84043"
       }
     },
+    orderConfirmation: {
+      current: {
+        number: "XYZ"
+      }
+    },
     order: {
       current: {
         name: "#123"
@@ -85,6 +90,10 @@ function generateOfferURL(api) {
   }
   if (api.shopApi?.shop?.name != null) {
     url.searchParams.set("shop_name", api.shopApi.shop.name);
+  }
+
+  if (api.shopApi?.orderConfirmation != null) {
+    url.searchParams.set("confirmation_number", api.shopApi.orderConfirmation.current.number);
   }
 
   if (api.shopApi?.order != null) {

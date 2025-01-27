@@ -130,6 +130,7 @@ export default class Api {
       this.addParam(url, this.shopApi?.shop?.name, "shop_name");
 
       // Order Price information
+      this.addParam(url, this.shopApi?.orderConfirmation?.current?.number, "confirmation_number");
       this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");

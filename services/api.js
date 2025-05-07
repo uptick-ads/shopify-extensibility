@@ -128,9 +128,11 @@ export default class Api {
       // Shop information
       this.addParam(url, this.shopApi?.shop?.id, "shop_id");
       this.addParam(url, this.shopApi?.shop?.name, "shop_name");
+      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
+      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
       // Order Price information
-      this.addParam(url, this.shopApi?.orderConfirmation?.current?.number, "confirmation_number");
+      this.addParam(url, this.shopApi?.orderConfirmation?.current?.number || this.shopApi?.order?.current?.confirmationNumber, "confirmation_number");
       this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
@@ -140,6 +142,8 @@ export default class Api {
       this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName, "first_name");
       this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode, "country_code");
       this.addParam(url, this.shopApi?.shippingAddress?.current?.zip, "zip");
+
+      this.addParam(url, this.shopApi?.extension?.target, "target");
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to get shop api information" } });
     }
@@ -183,11 +187,14 @@ export default class Api {
 
     try {
       let url = new URL(offerResult.links.offer_event);
-      url.searchParams.set("ev", "offer_viewed"); // Event Type
-      url.searchParams.set("ts", this.getTimeStamp()); // Current Timestamp
+
+      this.addParam(url, "offer_viewed", "ev"); // Event Type
+      this.addParam(url, this.getTimeStamp(), "ts"); // Current Timestamp
+      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl"); // Location
+      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl"); // Referrer
       if (navigator != null) { // Window doesn't exist
-        url.searchParams.set("de", navigator?.language); // Navigator Language
-        url.searchParams.set("ua", navigator?.userAgent); // User Agent string
+        this.addParam(url, navigator?.language, "de"); // Navigator Language
+        this.addParam(url, navigator?.userAgent, "ua"); // User Agent string
       }
 
       return this.fetchResult(url.toString(), { method: "POST", setLoader: this.noop, parseJson: false });

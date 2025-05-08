@@ -3,7 +3,7 @@ import {
 } from "@shopify/ui-extensions-react/checkout";
 
 // Generated
-import Generator from "../../extraction/generation/Generator.jsx";
+import Generator from "../generation/Generator.jsx";
 
 export default function OrderConfirmedHeader({ header }) {
   if (header == null || header.length === 0) {

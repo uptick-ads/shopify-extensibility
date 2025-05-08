@@ -5,7 +5,7 @@ import {
   InlineSpacer
 } from "@shopify/ui-extensions-react/checkout";
 
-import { hideOffers } from "../../utils/offers.js";
+import { hideOffers } from "../utilities/offers.js";
 
 export default function OfferBadges({ current, start, total }) {
   if (hideOffers(current, start, total)) {

@@ -3,7 +3,7 @@ import {
 } from "@shopify/ui-extensions-react/checkout";
 
 // Generated
-import Generator from "../../extraction/generation/Generator.jsx";
+import Generator from "../generation/Generator.jsx";
 
 const CONVERT_SECONDARY_BUTTON = true;
 

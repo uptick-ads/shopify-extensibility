@@ -6,7 +6,7 @@ import {
 } from "@shopify/ui-extensions-react/checkout";
 
 // Utils
-import { isEmpty } from "../../extraction/utilities/present.js";
+import { isEmpty } from "../utilities/present.js";
 
 export default function OfferImageWrapper({ image_url, children }) {
   if (isEmpty(image_url)) {

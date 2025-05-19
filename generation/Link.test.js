@@ -13,19 +13,49 @@ import "@shopify/react-testing/matchers";
 import { Link } from "@shopify/ui-extensions/checkout";
 import merge from "deepmerge";
 
-const base = {
+const plainLink = {
   defaultKeyName: "test",
   keyIndex: 1,
   item: {
     attributes: {
       to: "https://google.com"
     },
-    text: "Custom"
+    text: "Plain"
   }
 };
 
-function mountWithRoot(extra = {}) {
-  const generatedComponent = generateLink(merge(base, extra));
+const toAttributeLink = {
+  defaultKeyName: "test",
+  keyIndex: 1,
+  item: {
+    attributes: {
+      to: "https://google.com"
+    },
+    text: "To Attribute"
+  },
+  options: {
+    rejected: false,
+    rejectOffer: (url) => url
+  }
+};
+
+const urlPropertyLink = {
+  defaultKeyName: "test",
+  keyIndex: 1,
+  item: {
+    attributes: {
+    },
+    url: "https://google.com",
+    text: "Url Property"
+  },
+  options: {
+    rejected: false,
+    rejectOffer: (url) => url
+  }
+};
+
+function mountWithRoot(data, extra = {}) {
+  const generatedComponent = generateLink(merge(data, extra));
   const root = mount((root) => {
     return createRoot(root).render(generatedComponent);
   });
@@ -35,17 +65,30 @@ function mountWithRoot(extra = {}) {
 
 describe("Generates Link Component", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot();
+    const component = mountWithRoot(plainLink);
     expect(component.is(Link)).toBeTruthy();
-    expect(component.text()).toBe("Custom");
+    expect(component.text()).toBe("Plain");
     // This isn't working since I had to hack it together
     // expect(component.tree.key).toBe("link-test-1");
     expect(component.prop("to")).toBe("https://google.com");
     expect(Object.keys(component.props).length).toBe(1);
   });
 
+  test("creates with custom property", () => {
+    const component = mountWithRoot(plainLink, {
+      item: {
+        attributes: {
+          emphasis: "bold"
+        }
+      }
+    });
+    expect(component.prop("emphasis")).toBe("bold");
+    expect(component.prop("to")).toBe("https://google.com");
+    expect(Object.keys(component.props).length).toBe(2);
+  });
+
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot({
+    const component = mountWithRoot(plainLink, {
       item: {
         text: ""
       },
@@ -53,5 +96,83 @@ describe("Generates Link Component", () => {
     });
     expect(component.text()).toBe("Children");
     expect(Object.keys(component.props).length).toBe(1);
+  });
+});
+
+describe("Generates Link Component with to attribute and options", () => {
+  test("creates with key and text", () => {
+    const component = mountWithRoot(toAttributeLink);
+    expect(component.is(Link)).toBeTruthy();
+    expect(component.text()).toBe("To Attribute");
+    expect(component.prop("disabled")).toBe(false);
+    expect(component.prop("loading")).toBe(false);
+    expect(component.prop("to")).toBe("https://google.com");
+    // This isn't working since I had to hack it together with root mount
+    // expect(component.tree.key).toBe("button-test-1");
+    expect(Object.keys(component.props).length).toBe(3);
+  });
+
+  test("creates with custom property", () => {
+    const component = mountWithRoot(toAttributeLink, {
+      item: {
+        attributes: {
+          emphasis: "bold"
+        }
+      }
+    });
+    expect(component.prop("emphasis")).toBe("bold");
+    expect(component.prop("disabled")).toBe(false);
+    expect(component.prop("loading")).toBe(false);
+    expect(Object.keys(component.props).length).toBe(4);
+  });
+
+  test("creates with children if text is blank", () => {
+    const component = mountWithRoot(toAttributeLink, {
+      item: {
+        text: ""
+      },
+      children: "Children"
+    });
+    expect(component.text()).toBe("Children");
+    expect(Object.keys(component.props).length).toBe(3);
+  });
+});
+
+describe("Generates Link Component with url property and options", () => {
+  test("creates with key and text", () => {
+    const component = mountWithRoot(urlPropertyLink);
+    expect(component.is(Link)).toBeTruthy();
+    expect(component.text()).toBe("Url Property");
+    expect(component.prop("disabled")).toBe(false);
+    expect(component.prop("loading")).toBe(false);
+    expect(component.props).toHaveProperty("onPress", expect.any(Function));
+    // This isn't working since I had to hack it together with root mount
+    // expect(component.tree.key).toBe("button-test-1");
+    expect(Object.keys(component.props).length).toBe(3);
+  });
+
+  test("creates with custom property", () => {
+    const component = mountWithRoot(urlPropertyLink, {
+      item: {
+        attributes: {
+          emphasis: "bold"
+        }
+      }
+    });
+    expect(component.prop("emphasis")).toBe("bold");
+    expect(component.prop("disabled")).toBe(false);
+    expect(component.prop("loading")).toBe(false);
+    expect(Object.keys(component.props).length).toBe(4);
+  });
+
+  test("creates with children if text is blank", () => {
+    const component = mountWithRoot(urlPropertyLink, {
+      item: {
+        text: ""
+      },
+      children: "Children"
+    });
+    expect(component.text()).toBe("Children");
+    expect(Object.keys(component.props).length).toBe(3);
   });
 });

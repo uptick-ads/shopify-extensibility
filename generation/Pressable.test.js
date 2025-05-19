@@ -73,7 +73,7 @@ describe("Generates Pressable Component with no to or url", () => {
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot({
+    const component = mountWithRoot(plainPressable, {
       item: {
         attributes: {
           emphasis: "bold"
@@ -85,7 +85,7 @@ describe("Generates Pressable Component with no to or url", () => {
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot({
+    const component = mountWithRoot(plainPressable, {
       item: {
         text: ""
       },

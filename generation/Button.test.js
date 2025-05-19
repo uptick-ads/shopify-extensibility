@@ -84,7 +84,7 @@ describe("Generates Button Component with no to or url", () => {
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot({
+    const component = mountWithRoot(plainButton, {
       item: {
         attributes: {
           emphasis: "bold"
@@ -96,7 +96,7 @@ describe("Generates Button Component with no to or url", () => {
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot({
+    const component = mountWithRoot(plainButton, {
       item: {
         text: ""
       },

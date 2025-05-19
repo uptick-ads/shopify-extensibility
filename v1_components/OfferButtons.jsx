@@ -14,7 +14,7 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
 
   // Hack at the moment to replace button with pressable
   const updatedActions = actions.map(item => {
-    if (CONVERT_SECONDARY_BUTTON === true && item != null && item.url != null) {
+    if (CONVERT_SECONDARY_BUTTON === true && item != null && item.type === "button" && item.url != null) {
       item = { ...item };
 
       item.type = "pressable";
@@ -56,6 +56,10 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
               rejectOffer: rejectOffer
             },
             pressable: {
+              rejected: rejected,
+              rejectOffer: rejectOffer
+            },
+            link: {
               rejected: rejected,
               rejectOffer: rejectOffer
             }

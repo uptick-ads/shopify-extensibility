@@ -1,8 +1,7 @@
 import {
   View,
   Badge,
-  InlineLayout,
-  InlineSpacer
+  InlineLayout
 } from "@shopify/ui-extensions-react/checkout";
 
 import { hideOffers } from "../utilities/offers.js";
@@ -12,21 +11,23 @@ export default function OfferBadges({ current, start, total }) {
     return false;
   }
 
+  let columns = ["fill"];
+
   let offer_badges = [];
-  for (let index = start; index <= total; index++) {
-    if (index > start) {
-      offer_badges.push(<InlineSpacer key={`spacer-${index}`} spacing="tight" />);
-    }
-    offer_badges.push(<Badge key={`badge-${index}`} tone={index == current ? "default" : "subdued"}>{index}</Badge>);
+  for (let index = 1; index <= total; index++) {
+    columns.push("auto");
+
+    offer_badges.push(<View key={`badge-view-${index}`} padding={["none", "tight"]}>
+      <Badge key={`badge-${index}`} tone={index == current ? "default" : "subdued"}>{index}</Badge>
+    </View>);
   }
+  columns.push("fill");
 
   return (
-    <InlineLayout columns={["fill", "auto", "fill"]}>
+    <InlineLayout columns={columns}>
       <View>
       </View>
-      <View>
-        {offer_badges}
-      </View>
+      {offer_badges}
       <View>
       </View>
     </InlineLayout>

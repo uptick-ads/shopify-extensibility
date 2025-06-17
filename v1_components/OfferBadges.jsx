@@ -14,7 +14,7 @@ export default function OfferBadges({ current, start, total }) {
   let columns = ["fill"];
 
   let offer_badges = [];
-  for (let index = 1; index <= total; index++) {
+  for (let index = start; index <= total; index++) {
     columns.push("auto");
 
     offer_badges.push(<View key={`badge-view-${index}`} padding={["none", "tight"]}>

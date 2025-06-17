@@ -122,17 +122,19 @@ export default class Api {
 
       // Order Price information
       this.addParam(url, this.shopApi?.orderConfirmation?.current?.number || this.shopApi?.order?.current?.confirmationNumber, "confirmation_number");
-      this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
+      this.addParam(url, this.shopApi?.order?.current?.name || this.shopApi?.orderConfirmation?.current?.number, "order_name");
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
       this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
 
       // Address information (may fail if shop doesn't have access)
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName, "first_name");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode, "country_code");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.zip, "zip");
+      this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
+      this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");
+      this.addParam(url, this.shopApi?.shippingAddress?.current?.zip || this.shopApi?.billingAddress?.current?.zip, "zip");
 
       this.addParam(url, this.shopApi?.extension?.target, "target");
+      this.addParam(url, this.shopApi?.extension?.version, "script_version");
+      this.addParam(url, this.shopApi?.extension?.apiVersion, "api_version");
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to get shop api information" } });
     }

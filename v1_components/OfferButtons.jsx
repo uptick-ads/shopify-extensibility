@@ -1,5 +1,6 @@
 import {
-  View
+  Grid,
+  Style
 } from "@shopify/ui-extensions-react/checkout";
 
 // Generated
@@ -12,6 +13,7 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
     return false;
   }
 
+  let allButtons = true;
   // Hack at the moment to replace button with pressable
   const updatedActions = actions.map(item => {
     if (CONVERT_SECONDARY_BUTTON === true && item != null && item.type === "button" && item.url != null) {
@@ -27,7 +29,7 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
       item.attributes.background = "base";
       item.attributes.padding = "base";
       item.attributes.cornerRadius = "base";
-      item.attributes.display = "inline";
+      item.attributes.inlineAlignment = "center";
 
       item.children ||= [];
       item.children.push({
@@ -40,12 +42,25 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
         }
       });
       delete item.text;
+    } else if (item != null && item.type === "link") {
+      allButtons = false;
+      item = {
+        type: "view",
+        attributes: {
+          blockAlignment: "center",
+          inlineAlignment: "center"
+        },
+        children: [item]
+      };
     }
     return item;
   });
 
   return (
-    <View>
+    <Grid
+      columns={Style.default(["fill"]).when({ viewportInlineSize: { min: "small" }}, ["auto", "20px", "auto"])}
+      rows={Style.default(["fill", (allButtons ? "15px" : "0%"), "fill"]).when({ viewportInlineSize: { min: "small" }}, ["fill"])}
+      spacing="none" >
       {
         Generator({
           defaultKeyName: "actions",
@@ -66,6 +81,6 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
           }
         })
       }
-    </View>
+    </Grid>
   );
 }

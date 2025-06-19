@@ -30,8 +30,8 @@ export default function OfferImageWrapper({ image_url, children }) {
         inlineAlignment={"center"}
       >
         <View
-          maxBlockSize={100}
-          maxInlineSize={100}>
+          maxBlockSize={150}
+          maxInlineSize={150}>
           <Image source={image_url} />
         </View>
       </View>
@@ -45,8 +45,8 @@ export default function OfferImageWrapper({ image_url, children }) {
         blockAlignment={"end"}
       >
         <View
-          maxBlockSize={100}
-          maxInlineSize={100}>
+          maxBlockSize={150}
+          maxInlineSize={150}>
           <Image source={image_url} />
         </View>
       </View>

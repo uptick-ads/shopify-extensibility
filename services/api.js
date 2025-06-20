@@ -128,11 +128,13 @@ export default class Api {
       this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
 
       // Address information (may fail if shop doesn't have access)
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName, "first_name");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode, "country_code");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.zip, "zip");
+      this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
+      this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");
+      this.addParam(url, this.shopApi?.shippingAddress?.current?.zip || this.shopApi?.billingAddress?.current?.zip, "zip");
 
-      this.addParam(url, this.shopApi?.extension?.target, "target");
+      this.addParam(url, this.shopApi?.extension?.target, "shop_target");
+      this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
+      this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to get shop api information" } });
     }

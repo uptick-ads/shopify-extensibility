@@ -11,14 +11,22 @@ import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
 
-function createApi(includeShopApi = true, { integrationId = null } = {}) {
+function createApi(includeShopApi = true, { integrationId = null, includeShippingAddress = true } = {}) {
   const shopApi = {
     shop: {
       id: "shopid",
       name: "The Shop",
-      myshopifyDomain: "shop.shopify.com"
+      myshopifyDomain: "shop.shopify.com",
+      storefrontUrl: "https://shop.shopify.com"
     },
     shippingAddress: {
+      current: {
+        firstName: "Bob",
+        countryCode: "USA",
+        zip: "84043"
+      }
+    },
+    billingAddress: {
       current: {
         firstName: "Bob",
         countryCode: "USA",
@@ -47,8 +55,17 @@ function createApi(includeShopApi = true, { integrationId = null } = {}) {
           amount: 75.32
         }
       }
+    },
+    extension: {
+      target: "thank-you.block",
+      version: "uptick_58",
+      apiVersion: "1.1.1"
     }
   };
+
+  if (!includeShippingAddress) {
+    delete shopApi.shippingAddress;
+  }
 
   const api = new Api({
     integrationId: integrationId,
@@ -92,6 +109,11 @@ function generateOfferURL(api) {
     url.searchParams.set("shop_name", api.shopApi.shop.name);
   }
 
+  if (api.shopApi?.shop?.storefrontUrl != null) {
+    url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
+    url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
+  }
+
   if (api.shopApi?.orderConfirmation != null) {
     url.searchParams.set("confirmation_number", api.shopApi.orderConfirmation.current.number);
   }
@@ -110,6 +132,24 @@ function generateOfferURL(api) {
     url.searchParams.set("first_name", api.shopApi.shippingAddress.current.firstName);
     url.searchParams.set("country_code", api.shopApi.shippingAddress.current.countryCode);
     url.searchParams.set("zip", api.shopApi.shippingAddress.current.zip);
+  }
+
+  if (api.shopApi?.shippingAddress == null && api.shopApi?.billingAddress != null) {
+    url.searchParams.set("first_name", api.shopApi.billingAddress.current.firstName);
+    url.searchParams.set("country_code", api.shopApi.billingAddress.current.countryCode);
+    url.searchParams.set("zip", api.shopApi.billingAddress.current.zip);
+  }
+
+  if (api.shopApi?.extension?.target != null) {
+    url.searchParams.set("shop_target", api.shopApi.extension.target);
+  }
+
+  if (api.shopApi?.extension?.version != null) {
+    url.searchParams.set("shop_script_version", api.shopApi.extension.version);
+  }
+
+  if (api.shopApi?.extension?.apiVersion != null) {
+    url.searchParams.set("shop_api_version", api.shopApi.extension.apiVersion);
   }
 
   return url.toString();
@@ -288,6 +328,34 @@ describe("api", () => {
 
     test("if flow response is valid calls getOfferBase", async () => {
       const api = createApi();
+      const returnResult = {
+        links: {
+          next_offer: "flow_url"
+        }
+      };
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+      jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+
+      const result = await api.getInitialOffer("order_confirmation");
+      expect(result).toBe("offer");
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
+      expect(api.getOfferBase).toHaveBeenCalledTimes(1);
+
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
+    test("uses billing address as a backup if shipping is missing", async () => {
+      const api = createApi(true, { includeShippingAddress: false });
+      expect(api.shopApi.shippingAddress).toBeUndefined();
+      expect(api.shopApi.billingAddress).toBeDefined();
+
       const returnResult = {
         links: {
           next_offer: "flow_url"
@@ -609,6 +677,8 @@ describe("api", () => {
       let url = new URL(offerResult.links.offer_event);
       url.searchParams.append("ev", "offer_viewed");
       url.searchParams.append("ts", "timestamp1234");
+      url.searchParams.append("dl", "https://shop.shopify.com");
+      url.searchParams.append("rl", "https://shop.shopify.com");
       url.searchParams.append("de", "en-US");
       url.searchParams.append("ua", "Chrome");
 

@@ -8,6 +8,9 @@ import {
 // Utils
 import { isEmpty } from "../utilities/present.js";
 
+const MAX_BLOCK_SIZE = 150;
+const MAX_INLINE_SIZE = 150;
+
 export default function OfferImageWrapper({ image_url, children }) {
   if (isEmpty(image_url)) {
     return <>
@@ -30,8 +33,8 @@ export default function OfferImageWrapper({ image_url, children }) {
         inlineAlignment={"center"}
       >
         <View
-          maxBlockSize={100}
-          maxInlineSize={100}>
+          maxBlockSize={MAX_BLOCK_SIZE}
+          maxInlineSize={MAX_INLINE_SIZE}>
           <Image source={image_url} />
         </View>
       </View>
@@ -45,8 +48,8 @@ export default function OfferImageWrapper({ image_url, children }) {
         blockAlignment={"end"}
       >
         <View
-          maxBlockSize={100}
-          maxInlineSize={100}>
+          maxBlockSize={MAX_BLOCK_SIZE}
+          maxInlineSize={MAX_INLINE_SIZE}>
           <Image source={image_url} />
         </View>
       </View>

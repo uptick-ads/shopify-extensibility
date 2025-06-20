@@ -141,15 +141,15 @@ function generateOfferURL(api) {
   }
 
   if (api.shopApi?.extension?.target != null) {
-    url.searchParams.set("target", api.shopApi.extension.target);
+    url.searchParams.set("shop_target", api.shopApi.extension.target);
   }
 
   if (api.shopApi?.extension?.version != null) {
-    url.searchParams.set("script_version", api.shopApi.extension.version);
+    url.searchParams.set("shop_script_version", api.shopApi.extension.version);
   }
 
   if (api.shopApi?.extension?.apiVersion != null) {
-    url.searchParams.set("api_version", api.shopApi.extension.apiVersion);
+    url.searchParams.set("shop_api_version", api.shopApi.extension.apiVersion);
   }
 
   return url.toString();

@@ -12,7 +12,7 @@ export default function UptickFooter({ footer }) {
   }
 
   return (
-    <InlineLayout columns={["fill", "auto"]}>
+    <InlineLayout columns={["fill", "auto"]} padding={["base", "none", "none", "none"]}>
       <View>
       </View>
       <View>

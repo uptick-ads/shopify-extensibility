@@ -63,12 +63,12 @@ export function addURLtoV2(offer) {
 export default function UptickOffer({ offer, loading, nextOffer, rejected, rejectOffer, children }) {
   // Backwards compatibility
   if (loading == null && rejected != null) {
-    console.warn("rejected is deprecated, please use loading parameter instead.");
+    console.warn("The 'rejected' parameter is deprecated. Please use the 'loading' parameter instead.");
     loading ||= rejected;
   }
 
   if (nextOffer == null && rejectOffer != null) {
-    console.warn("nextOffer is deprecated, please use rejectOffer parameter instead.");
+    console.warn("rejectOffer is deprecated, please use nextOffer parameter instead.");
     nextOffer ||= rejectOffer;
   }
 

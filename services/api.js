@@ -103,7 +103,7 @@ export default class Api {
     }
 
     if (isEmpty(nextOfferURL)) {
-      this.captureException(new Error("Reject URL is required."));
+      this.captureException(new Error("Next offer URL is required."));
       return false;
     }
 

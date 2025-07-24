@@ -225,7 +225,9 @@ export default class Api {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-        },
+          "X-Uptick-Integration-Type": "shopify_extensibility",
+          "X-Uptick-Integration-Version": "1.0.0"
+        }
       });
 
       if (parseJson) {

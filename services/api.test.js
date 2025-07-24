@@ -459,7 +459,7 @@ describe("api", () => {
       expect(api.setLoading).toHaveBeenCalledTimes(0);
 
       expect(api.captureException).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledWith(new Error("Reject URL is required."));
+      expect(api.captureException).toHaveBeenCalledWith(new Error("Next offer URL is required."));
     });
 
     test("will successfully call getOfferBase", async () => {

@@ -91,7 +91,7 @@ export default class Api {
     }
   }
 
-  async getNextOffer(rejectURL) {
+  async getNextOffer(nextOfferURL) {
     if (this.shopApi == null) {
       this.captureException(new Error("Shop API is required."));
       return false;
@@ -102,12 +102,17 @@ export default class Api {
       return false;
     }
 
-    if (isEmpty(rejectURL)) {
-      this.captureException(new Error("Reject URL is required."));
+    if (isEmpty(nextOfferURL)) {
+      this.captureException(new Error("Next offer URL is required."));
       return false;
     }
 
-    return await this.getOfferBase(rejectURL, { method: "POST", setLoader: this.setLoading });
+    let method = "POST";
+    if (nextOfferURL.toLowerCase().includes("offers/new")) {
+      method = "GET"; // New offers are fetched with GET
+    }
+
+    return await this.getOfferBase(nextOfferURL, { method: method, setLoader: this.setLoading });
   }
 
   async getOfferBase(offerURL, { method, setLoader }) {
@@ -165,6 +170,7 @@ export default class Api {
 
     // bring api version down
     offerData.api_version = offerResult.api_version;
+    offerData.links = offerResult.links;
     // Send without blocking
     this.offerViewedEvent(offerResult);
     return offerData;
@@ -219,7 +225,9 @@ export default class Api {
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
-        },
+          "X-Uptick-Integration-Type": "shopify_extensibility",
+          "X-Uptick-Integration-Version": "1.0.0"
+        }
       });
 
       if (parseJson) {

@@ -18,7 +18,60 @@ import Generator from "../generation/Generator.jsx";
 import { isPresent } from "../utilities/present.js";
 import { hideOffers } from "../utilities/offers.js";
 
-export default function UptickOffer({ offer, loading, rejectOffer, children }) {
+export function addURLtoV1(offer) {
+  if (offer?.attributes?.actions != null && offer?.links?.next_offer != null) {
+    offer.attributes.actions.forEach(action => {
+      // Assumption is accept only has a "to" property at the moment
+      if (action?.attributes?.to != null) {
+        action.url = offer.links.next_offer; // Add url to the property so that we do the callback on click
+        action.attributes.external = true; // Mark as external link
+      }
+    });
+  }
+  return offer;
+}
+
+// re-use your finder from before
+function findNodeWithTo(node) {
+  if (!node || typeof node !== "object") return null;
+  if (node.attributes && node.attributes.to) return node;
+  if (Array.isArray(node)) {
+    for (let item of node) {
+      const hit = findNodeWithTo(item);
+      if (hit) return hit;
+    }
+  }
+  for (let key of Object.keys(node)) {
+    const hit = findNodeWithTo(node[key]);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+export function addURLtoV2(offer) {
+  if (offer?.links?.next_offer == null) {
+    return offer;
+  }
+  const action = findNodeWithTo(offer);
+  if (action) {
+    action.url = offer.links.next_offer; // Add url to the property so that we do the callback on click
+    action.attributes.external = true; // Mark as external link
+  }
+  return offer;
+}
+
+export default function UptickOffer({ offer, loading, nextOffer, rejected, rejectOffer, children }) {
+  // Backwards compatibility
+  if (loading == null && rejected != null) {
+    console.warn("The 'rejected' parameter is deprecated. Please use the 'loading' parameter instead.");
+    loading ||= rejected;
+  }
+
+  if (nextOffer == null && rejectOffer != null) {
+    console.warn("rejectOffer is deprecated, please use nextOffer parameter instead.");
+    nextOffer ||= rejectOffer;
+  }
+
   // If we're loading an offer and haven't had one previously, render component
   if (loading === true && offer == null) {
     return (
@@ -36,8 +89,11 @@ export default function UptickOffer({ offer, loading, rejectOffer, children }) {
     );
   }
 
+
+
   // See if we have a v2 offer, and if so render it
   if (offer.api_version === "v2") {
+    offer = addURLtoV2(offer);
     return (
       <>
         {
@@ -46,16 +102,16 @@ export default function UptickOffer({ offer, loading, rejectOffer, children }) {
             items: offer?.children,
             options: {
               button: {
-                rejected: loading,
-                rejectOffer: rejectOffer
+                loading: loading,
+                nextOffer: nextOffer
               },
               pressable: {
-                rejected: loading,
-                rejectOffer: rejectOffer
+                loading: loading,
+                nextOffer: nextOffer
               },
               link: {
-                rejected: loading,
-                rejectOffer: rejectOffer
+                loading: loading,
+                nextOffer: nextOffer
               }
             },
             allowEmpty: true
@@ -66,6 +122,7 @@ export default function UptickOffer({ offer, loading, rejectOffer, children }) {
     );
   }
 
+  offer = addURLtoV1(offer);
   // Fallback to v1 rendering
   let hasOffer = hideOffers(offer?.attributes?.offers?.current, offer?.attributes?.offers?.start, offer?.attributes?.offers?.size) === false;
   let hasPersonalization = (offer?.attributes?.personalization || []).length > 0;
@@ -92,8 +149,8 @@ export default function UptickOffer({ offer, loading, rejectOffer, children }) {
         <BlockSpacer spacing="loose" />
         <OfferButtons
           actions={offer?.attributes?.actions}
-          rejected={loading}
-          rejectOffer={rejectOffer}
+          loading={loading}
+          nextOffer={nextOffer}
         />
         { (offer?.attributes?.disclaimer || []).length > 0 && <BlockSpacer spacing="extraTight" /> }
         {Generator({ defaultKeyName: "disclaimer", items: offer?.attributes?.disclaimer })}

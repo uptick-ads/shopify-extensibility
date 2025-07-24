@@ -33,8 +33,8 @@ const toAttributePressable = {
     text: "To Attribute"
   },
   options: {
-    rejected: false,
-    rejectOffer: (url) => url
+    loading: false,
+    nextOffer: (url) => url
   }
 };
 
@@ -48,8 +48,8 @@ const urlPropertyPressable = {
     text: "Url Property"
   },
   options: {
-    rejected: false,
-    rejectOffer: (url) => url
+    loading: false,
+    nextOffer: (url) => url
   }
 };
 

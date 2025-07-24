@@ -11,19 +11,20 @@ export default function generatePressable({ defaultKeyName, keyIndex, item, chil
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
 
   let attributes = formatAttributes(item);
+  // Add dynamic attributes if we have a url or to property
   if (isPresent(item.url) || isPresent(item.attributes?.to)) {
-    const rejected = options?.rejected;
-    const rejectOffer = options?.rejectOffer;
+    const loading = options?.loading;
+    const nextOffer = options?.nextOffer;
 
-    if (rejected == null) {
-      console.log("rejected is a required option for generatePressable with link");
+    if (loading == null) {
+      console.log("loading is a required option for generatePressable with url attribute");
     }
 
-    if (rejectOffer == null) {
-      console.log("rejectOffer is a required option for generatePressable with link");
+    if (nextOffer == null) {
+      console.log("nextOffer is a required option for generatePressable with url attribute");
     }
 
-    attributes = createDynamicAttributes(item, rejected, rejectOffer);
+    attributes = createDynamicAttributes(item, loading, nextOffer);
   }
 
   return (

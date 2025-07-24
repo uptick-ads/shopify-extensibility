@@ -33,8 +33,8 @@ const toAttributeButton = {
     text: "To Attribute"
   },
   options: {
-    rejected: false,
-    rejectOffer: (url) => url
+    loading: false,
+    nextOffer: (url) => url
   }
 };
 
@@ -48,8 +48,8 @@ const urlPropertyButton = {
     text: "Url Property"
   },
   options: {
-    rejected: false,
-    rejectOffer: (url) => url
+    loading: false,
+    nextOffer: (url) => url
   }
 };
 
@@ -187,20 +187,20 @@ describe("Generates Button Component with url property", () => {
 
 describe("createDynamicAttributes", () => {
   test("add all properties if url blank", () => {
-    const result = createDynamicAttributes({ url: "", attributes: { other: true } }, "rejected", "rejectOffer");
+    const result = createDynamicAttributes({ url: "", attributes: { other: true } }, "loading", "nextOffer");
     expect(result).toStrictEqual({
       other: true,
-      disabled: "rejected",
-      loading: "rejected"
+      disabled: "loading",
+      loading: "loading"
     });
   });
 
   test("add all properties if url is present", () => {
-    const result = createDynamicAttributes({ url: "https://google.com", attributes: { other: true } }, "rejected", (url) => `clicked ${url}`);
+    const result = createDynamicAttributes({ url: "https://google.com", attributes: { other: true } }, "loading", (url) => `clicked ${url}`);
     expect(result).toMatchObject({
       other: true,
-      disabled: "rejected",
-      loading: "rejected"
+      disabled: "loading",
+      loading: "loading"
     });
     expect(result.onPress()).toBe("clicked https://google.com");
   });

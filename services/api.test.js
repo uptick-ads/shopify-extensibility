@@ -459,7 +459,7 @@ describe("api", () => {
       expect(api.setLoading).toHaveBeenCalledTimes(0);
 
       expect(api.captureException).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledWith(new Error("Reject URL is required."));
+      expect(api.captureException).toHaveBeenCalledWith(new Error("Next offer URL is required."));
     });
 
     test("will successfully call getOfferBase", async () => {
@@ -474,6 +474,26 @@ describe("api", () => {
 
       expect(api.getOfferBase).toHaveBeenCalledTimes(1);
       expect(api.getOfferBase).toHaveBeenCalledWith("reject_url", { method: "POST", setLoader: api.setLoading });
+
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
+
+      expect(api.setLoading).toHaveBeenCalledTimes(0);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
+    test("will successfully call getOfferBase with new offer url", async () => {
+      const api = createApi();
+      api.flow = true;
+
+      jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getNextOffer("something/offers/new?event_id=event-id&index=0");
+      expect(result).toBe("offer");
+
+      expect(api.getOfferBase).toHaveBeenCalledTimes(1);
+      expect(api.getOfferBase).toHaveBeenCalledWith("something/offers/new?event_id=event-id&index=0", { method: "GET", setLoader: api.setLoading });
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -714,7 +734,9 @@ describe("api", () => {
         cache: "no-cache",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-Uptick-Integration-Type": "shopify_extensibility",
+          "X-Uptick-Integration-Version": "1.0.0"
         }
       });
 
@@ -748,7 +770,9 @@ describe("api", () => {
         cache: "no-cache",
         headers: {
           Accept: "application/json",
-          "Content-Type": "application/json"
+          "Content-Type": "application/json",
+          "X-Uptick-Integration-Type": "shopify_extensibility",
+          "X-Uptick-Integration-Version": "1.0.0"
         }
       });
 

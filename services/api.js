@@ -91,7 +91,7 @@ export default class Api {
     }
   }
 
-  async getNextOffer(rejectURL) {
+  async getNextOffer(nextOfferURL) {
     if (this.shopApi == null) {
       this.captureException(new Error("Shop API is required."));
       return false;
@@ -102,7 +102,7 @@ export default class Api {
       return false;
     }
 
-    if (isEmpty(rejectURL)) {
+    if (isEmpty(nextOfferURL)) {
       this.captureException(new Error("Reject URL is required."));
       return false;
     }

@@ -6,20 +6,20 @@ import { Fragment } from "react";
 import { isEmpty, isPresent } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
 
-export function createDynamicAttributes(item, rejected, rejectOffer) {
+export function createDynamicAttributes(item, loading, nextOffer) {
   // If we don't have a url, it is assumed its a to property, then setup disabled button status only
   if (isEmpty(item.url)) {
     let hrefButton = {
-      disabled: rejected,
-      loading: rejected
+      disabled: loading,
+      loading: loading
     };
     return { ...item.attributes, ...hrefButton };
   }
 
   let clickButton = {
-    disabled: rejected,
-    loading: rejected,
-    onPress: () => rejectOffer(item.url)
+    disabled: loading,
+    loading: loading,
+    onPress: () => nextOffer(item.url)
   };
   return { ...item.attributes, ...clickButton };
 }
@@ -47,19 +47,20 @@ export default function generateButton({ defaultKeyName, keyIndex, item, childre
   const key = `button-${keyName}-${keyIndex}`;
 
   let attributes = formatAttributes(item);
+  // Add dynamic attributes if we have a url or to property
   if (isPresent(item.url) || isPresent(item.attributes?.to)) {
-    const rejected = options?.rejected;
-    const rejectOffer = options?.rejectOffer;
+    const loading = options?.loading;
+    const nextOffer = options?.nextOffer;
 
-    if (rejected == null) {
-      console.log("rejected is a required option for generateButton");
+    if (loading == null) {
+      console.log("loading is a required option for generateButton with url attribute");
     }
 
-    if (rejectOffer == null) {
-      console.log("rejectOffer is a required option for generateButton");
+    if (nextOffer == null) {
+      console.log("nextOffer is a required option for generateButton with url attribute");
     }
 
-    attributes = createDynamicAttributes(item, rejected, rejectOffer);
+    attributes = createDynamicAttributes(item, loading, nextOffer);
   }
 
   let content = null;

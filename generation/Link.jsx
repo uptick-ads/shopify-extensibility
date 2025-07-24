@@ -11,14 +11,17 @@ export default function generateLink({ defaultKeyName, keyIndex, item, children,
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
 
   let attributes = formatAttributes(item);
+  // Add dynamic attributes if we have a url or to property
   if (isPresent(item.url) || isPresent(item.attributes?.to)) {
-    const rejected = options?.rejected;
-    const rejectOffer = options?.rejectOffer;
+    const loading = options?.loading;
+    const nextOffer = options?.nextOffer;
+
+    // No logging comment here as we can have links without the options
 
     // If we have callbacks, add to link.
     // TODO: We need to update this on v2
-    if (rejected != null || rejectOffer != null) {
-      attributes = createDynamicAttributes(item, rejected, rejectOffer);
+    if (loading != null || nextOffer != null) {
+      attributes = createDynamicAttributes(item, loading, nextOffer);
     }
   }
 

@@ -8,7 +8,7 @@ import Generator from "../generation/Generator.jsx";
 
 const CONVERT_SECONDARY_BUTTON = true;
 
-export default function OfferButtons({ actions, rejected, rejectOffer }) {
+export default function OfferButtons({ actions, loading, nextOffer }) {
   if (actions == null || actions.length === 0) {
     return false;
   }
@@ -16,7 +16,7 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
   let allButtons = true;
   // Hack at the moment to replace button with pressable
   const updatedActions = actions.map(item => {
-    if (CONVERT_SECONDARY_BUTTON === true && item != null && item.type === "button" && item.url != null) {
+    if (CONVERT_SECONDARY_BUTTON === true && item != null && item.type === "button" && item.url != null && item.attributes?.to == null) {
       item = { ...item };
 
       item.type = "pressable";
@@ -67,16 +67,16 @@ export default function OfferButtons({ actions, rejected, rejectOffer }) {
           items: updatedActions,
           options: {
             button: {
-              rejected: rejected,
-              rejectOffer: rejectOffer
+              loading: loading,
+              nextOffer: nextOffer
             },
             pressable: {
-              rejected: rejected,
-              rejectOffer: rejectOffer
+              loading: loading,
+              nextOffer: nextOffer
             },
             link: {
-              rejected: rejected,
-              rejectOffer: rejectOffer
+              loading: loading,
+              nextOffer: nextOffer
             }
           }
         })

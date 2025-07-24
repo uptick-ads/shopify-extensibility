@@ -52,8 +52,8 @@ const buttonItem = {
 };
 
 const buttonOptions = {
-  rejected: false,
-  rejectOffer: () => null
+  loading: false,
+  nextOffer: () => null
 };
 
 const gridItem = {

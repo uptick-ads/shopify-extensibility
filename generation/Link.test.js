@@ -34,8 +34,8 @@ const toAttributeLink = {
     text: "To Attribute"
   },
   options: {
-    rejected: false,
-    rejectOffer: (url) => url
+    loading: false,
+    nextOffer: (url) => url
   }
 };
 
@@ -49,8 +49,8 @@ const urlPropertyLink = {
     text: "Url Property"
   },
   options: {
-    rejected: false,
-    rejectOffer: (url) => url
+    loading: false,
+    nextOffer: (url) => url
   }
 };
 

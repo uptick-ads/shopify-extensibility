@@ -481,6 +481,26 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
+
+    test("will successfully call getOfferBase with new offer url", async () => {
+      const api = createApi();
+      api.flow = true;
+
+      jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getNextOffer("something/offers/new?event_id=event-id&index=0");
+      expect(result).toBe("offer");
+
+      expect(api.getOfferBase).toHaveBeenCalledTimes(1);
+      expect(api.getOfferBase).toHaveBeenCalledWith("something/offers/new?event_id=event-id&index=0", { method: "GET", setLoader: api.setLoading });
+
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
+
+      expect(api.setLoading).toHaveBeenCalledTimes(0);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
   });
 
   describe("getOfferBase", () => {

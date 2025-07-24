@@ -107,7 +107,12 @@ export default class Api {
       return false;
     }
 
-    return await this.getOfferBase(rejectURL, { method: "POST", setLoader: this.setLoading });
+    let method = "POST";
+    if (nextOfferURL.toLowerCase().includes("offers/new")) {
+      method = "GET"; // New offers are fetched with GET
+    }
+
+    return await this.getOfferBase(nextOfferURL, { method: method, setLoader: this.setLoading });
   }
 
   async getOfferBase(offerURL, { method, setLoader }) {
@@ -165,6 +170,7 @@ export default class Api {
 
     // bring api version down
     offerData.api_version = offerResult.api_version;
+    offerData.links = offerResult.links;
     // Send without blocking
     this.offerViewedEvent(offerResult);
     return offerData;

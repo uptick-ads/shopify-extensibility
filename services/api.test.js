@@ -95,6 +95,8 @@ function generateFlowURL(api, placement, integrationID = null) {
   url.searchParams.append("api_versions[]", "v2");
   url.searchParams.set("placement", placement);
   url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
+  url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
+  url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
 
   return url.toString();
 }

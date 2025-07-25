@@ -63,11 +63,14 @@ export default class Api {
     const url = new URL(this.flowURL);
 
     try {
-      url.searchParams.set("api_versions[]", "v1");
+      this.addParam(url, "v1", "api_versions[]");
       url.searchParams.append("api_versions[]", "v2");
 
-      url.searchParams.set("placement", placement);
-      url.searchParams.set("shop_myshopify_domain", this.shopApi.shop.myshopifyDomain);
+      this.addParam(url, placement, "placement");
+      this.addParam(url, this.shopApi.shop.myshopifyDomain, "shop_myshopify_domain");
+
+      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
+      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
       this.setLoading(true);
       this.flow = await this.fetchResult(url.toString(), { setLoader: this.noop });

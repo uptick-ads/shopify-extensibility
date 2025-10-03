@@ -5,7 +5,8 @@ export default class Api {
     integrationId = null,
     captureWarning = null,
     captureException = null,
-    baseURL = "https://api.uptick.com"
+    baseURL = "https://api.uptick.com",
+    options = {}
   } = {}) {
     if (isEmpty(baseURL)) {
       throw new Error("baseURL is required.");
@@ -24,6 +25,7 @@ export default class Api {
     this.captureException = captureException;
     this.captureWarning = captureWarning;
     this.baseURL = baseURL;
+    this.options = options || {};
 
     if (isPresent(integrationId)) {
       this.flowURL = `${this.baseURL}/places/${integrationId}/flows/new`;
@@ -71,6 +73,9 @@ export default class Api {
 
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
+
+      // Add options to URL
+      this.addOptionsToUrl(url);
 
       this.setLoading(true);
       this.flow = await this.fetchResult(url.toString(), { setLoader: this.noop });
@@ -143,6 +148,9 @@ export default class Api {
       this.addParam(url, this.shopApi?.extension?.target, "shop_target");
       this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
       this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
+
+      // Add options to URL
+      this.addOptionsToUrl(url);
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to get shop api information" } });
     }
@@ -205,6 +213,17 @@ export default class Api {
 
   getTimeStamp() {
     return new Date().getTime();
+  }
+
+  addOptionsToUrl(url) {
+    if (this.options && typeof this.options === "object") {
+      Object.keys(this.options).forEach(key => {
+        const value = this.options[key];
+        if (isPresent(value)) {
+          this.addParam(url, value, key);
+        }
+      });
+    }
   }
 
   addParam(url, value, query_param_key) {

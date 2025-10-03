@@ -11,7 +11,7 @@ import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
 
-function createApi(includeShopApi = true, { integrationId = null, includeShippingAddress = true } = {}) {
+function createApi(includeShopApi = true, { integrationId = null, includeShippingAddress = true, options = {} } = {}) {
   const shopApi = {
     shop: {
       id: "shopid",
@@ -70,7 +70,8 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
   const api = new Api({
     integrationId: integrationId,
     captureException: jest.fn((x) => x),
-    captureWarning: jest.fn((x) => x)
+    captureWarning: jest.fn((x) => x),
+    options: options
   });
   api.setup({
     shopApi: includeShopApi ? shopApi : {
@@ -152,6 +153,16 @@ function generateOfferURL(api) {
 
   if (api.shopApi?.extension?.apiVersion != null) {
     url.searchParams.set("shop_api_version", api.shopApi.extension.apiVersion);
+  }
+
+  // Add options to URL
+  if (api.options && typeof api.options === "object") {
+    Object.keys(api.options).forEach(key => {
+      const value = api.options[key];
+      if (isPresent(value)) {
+        url.searchParams.set(key, value);
+      }
+    });
   }
 
   return url.toString();
@@ -710,6 +721,53 @@ describe("api", () => {
       expect(api.setLoading).toHaveBeenCalledTimes(0);
       expect(api.captureException).toHaveBeenCalledTimes(0);
     });
+
+    test("sends event without options", async () => {
+      const options = {
+        app_id: "test_app_456",
+        tracking_param: "tracking_value"
+      };
+
+      const api = createApi(true, { options });
+      jest.spyOn(api, "fetchResult").mockImplementation(() => "result");
+      jest.spyOn(api, "getTimeStamp").mockImplementation(() => "timestamp1234");
+
+      global.navigator = {
+        language: "en-US",
+        userAgent: "Chrome"
+      };
+
+      const offerResult = {
+        data: [],
+        links: {
+          flow: "https://api.uptick.com/v1/places/integrationId1234/flows/727e2041-95dd-4ee9-887d-c702e0cf5cd1",
+          offer_event: "https://api.uptick.com/v1/places/60b1add2-e873-453f-85a6-96fab0fa0b72/flows/2826f470-eab6-4615-a6e3-59ca43ac0502/events?eid=f7a5b7ac-2e41-4e16-882f-82a38d9c3902&offer_id=119&offer_index=0"
+        }
+      };
+
+      const result = await api.offerViewedEvent(offerResult);
+      expect(result).toBe("result");
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+
+      const calledUrl = api.fetchResult.mock.calls[0][0];
+      const url = new URL(calledUrl);
+
+      // Check that options are not included
+      expect(url.searchParams.has("app_id")).toBe(false);
+      expect(url.searchParams.has("tracking_param")).toBe(false);
+
+      // Check that other standard params are still there
+      expect(url.searchParams.get("ev")).toBe("offer_viewed");
+      expect(url.searchParams.get("ts")).toBe("timestamp1234");
+      expect(url.searchParams.get("dl")).toBe("https://shop.shopify.com");
+      expect(url.searchParams.get("rl")).toBe("https://shop.shopify.com");
+      expect(url.searchParams.get("de")).toBe("en-US");
+      expect(url.searchParams.get("ua")).toBe("Chrome");
+
+      expect(api.setLoading).toHaveBeenCalledTimes(0);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+    });
   });
 
   describe("fetchResult", () => {
@@ -784,6 +842,89 @@ describe("api", () => {
 
       expect(api.captureException).toHaveBeenCalledTimes(1);
       expect(api.captureException).toHaveBeenCalledWith("failed", { extra: { url: "https://www.test.com", method: "POST", parseJson: true } });
+    });
+  });
+
+  describe("options", () => {
+    test("adding app_id and other params to options shows up in expected URLs", async () => {
+      const options = {
+        app_id: "test_app_123",
+        custom_param: "custom_value",
+        numeric_param: 42
+      };
+
+      const api = createApi(true, { options });
+      const returnResult = {
+        api_version: "v1",
+        data: [{
+          type: "offer",
+          attributes: {
+            something: true
+          }
+        }]
+      };
+
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+
+      const calledUrl = api.fetchResult.mock.calls[0][0];
+      const url = new URL(calledUrl);
+
+      expect(url.searchParams.get("app_id")).toBe("test_app_123");
+      expect(url.searchParams.get("custom_param")).toBe("custom_value");
+      expect(url.searchParams.get("numeric_param")).toBe("42");
+    });
+
+    test("only null, undefined, and blank strings are excluded from query string", async () => {
+      const options = {
+        app_id: "test_app_123",
+        empty_string: "",
+        whitespace_string: "   ",
+        null_value: null,
+        undefined_value: undefined,
+        zero_value: 0,
+        false_value: false,
+        negative_number: -1,
+        true_value: true
+      };
+
+      const api = createApi(true, { options });
+      const returnResult = {
+        api_version: "v1",
+        data: [{
+          type: "offer",
+          attributes: {
+            something: true
+          }
+        }]
+      };
+
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+
+      const calledUrl = api.fetchResult.mock.calls[0][0];
+      const url = new URL(calledUrl);
+
+      // Should include all valid values including 0, false, negative numbers, true
+      expect(url.searchParams.get("app_id")).toBe("test_app_123");
+      expect(url.searchParams.get("zero_value")).toBe("0");
+      expect(url.searchParams.get("false_value")).toBe("false");
+      expect(url.searchParams.get("negative_number")).toBe("-1");
+      expect(url.searchParams.get("true_value")).toBe("true");
+
+      // Should not include null, undefined, empty strings, or whitespace-only strings
+      expect(url.searchParams.has("empty_string")).toBe(false);
+      expect(url.searchParams.has("whitespace_string")).toBe(false);
+      expect(url.searchParams.has("null_value")).toBe(false);
+      expect(url.searchParams.has("undefined_value")).toBe(false);
     });
   });
 });

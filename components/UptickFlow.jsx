@@ -144,6 +144,7 @@ export default function UptickOffer({ offer, loading, nextOffer, rejected, rejec
         { hasDescriptionOrImage && (hasOffer || hasPersonalization) && <BlockSpacer spacing="loose" /> }
         <OfferImageWrapper image_url={offer?.attributes?.image?.url} >
           {Generator({ defaultKeyName: "sponsored", items: offer?.attributes?.sponsored })}
+          { offer?.attributes?.sponsored && <BlockSpacer spacing="extraTight" /> }
           {Generator({ defaultKeyName: "content", items: offer?.attributes?.content })}
         </OfferImageWrapper>
         <BlockSpacer spacing="loose" />

@@ -95,7 +95,7 @@ jobs:
           CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
         run: |
           sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
-          insert_changelog="$(printf "\n## [${{ steps.version.outputs.NEXT_VERSION }}]\n\n%s" "$sanitized_changes")"
+          insert_changelog="$(printf "\n## [${{ steps.version.outputs.NEXT_VERSION }}] - $(date +%Y-%m-%d)\n\n%s" "$sanitized_changes")"
           awk -v insert="$insert_changelog" 'NR==3{print insert}1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
 
       - name: Remove CHANGES.md
@@ -107,9 +107,8 @@ jobs:
         env:
           CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
         run: |
-          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
           echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "$sanitized_changes" >> $GITHUB_ENV
+          echo "$CHANGELOG_CHANGES" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           echo "NEXT_VERSION=${{ steps.version.outputs.NEXT_VERSION }}" >> $GITHUB_ENV
 

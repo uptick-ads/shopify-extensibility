@@ -1,11 +1,13 @@
+#!/usr/bin/env sh
+
 # Enforce conventional commit prefix
 commit_msg=$(cat "$1")
-pattern="^((Merge[ a-z-]* branch.*)|(Revert*)|((work|build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.*\))?!?: .*))"
+pattern="^((Merge[ a-z-]* branch.*)|(Revert \".+\")|((work|build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test)(\(.*\))?!?: .*))"
 
 if ! echo "$commit_msg" | grep -qE "$pattern"; then
-  echo "\n❌ Commit message must start with a type prefix:"
-  echo "   work|build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test"
-  echo "\n   Example: feat: add new feature"
-  echo "   Example: fix(api): resolve timeout issue\n"
+  printf '\n❌ Commit message must start with a type prefix:\n'
+  printf '   work|build|chore|ci|docs|feat|fix|perf|refactor|revert|style|test\n'
+  printf '\n   Example: feat: add new feature\n'
+  printf '   Example: fix(api): resolve timeout issue\n\n'
   exit 1
 fi

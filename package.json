@@ -6,7 +6,7 @@
     "lint": "npx eslint \"**/*.{js,jsx}\"",
     "lint:fix": "npx eslint --fix \"**/*.{js,jsx}\"",
     "test": "NODE_ENV=test jest",
-    "prepare": "[ -d .git ] && husky || true",
+    "prepare": "if [ -d .git ]; then husky; else echo 'Not a git repo, skipping husky'; fi",
     "changelog": "npx git-cliff --unreleased -o CHANGES.md",
     "changelog:full": "npx git-cliff -o CHANGELOG.md",
     "version:next": "./bin/next_version.sh"

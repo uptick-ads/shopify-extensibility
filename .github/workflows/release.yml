@@ -7,86 +7,101 @@ on:
     types:
       - completed
 
+concurrency:
+  group: production_release
+  cancel-in-progress: false
+
 permissions:
   contents: write
+
+run-name: "Release: ${{ github.event.workflow_run.head_commit.message }}"
 
 jobs:
   Release:
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    if: ${{ github.actor != 'uptick-bot' && github.event.workflow_run.conclusion == 'success' }}
 
     steps:
+      - name: Load credentials
+        uses: 1password/load-secrets-action@v3
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          PPX_DIGITAL_ACTIONS_PAT: op://uptick-production/github-actions/github-personal-access-token
+          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
+
       - name: Checkout code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          token: ${{ secrets.GITHUB_TOKEN }}
+          persist-credentials: false
+          token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
-      - name: Load secrets from 1Password
-        uses: 1password/load-secrets-action@v3
-        with:
-          export-env: true
-        env:
-          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
-
-      - name: Check for manual CHANGES.md
+      - name: Check for CHANGES.md
         id: check_changes
-        run: |
-          if [ -f CHANGES.md ]; then
-            echo "exists=true" >> $GITHUB_OUTPUT
-          else
-            echo "exists=false" >> $GITHUB_OUTPUT
-          fi
+        uses: andstor/file-existence-action@v3
+        with:
+          files: CHANGES.md
 
       - name: Generate changelog with git-cliff
-        if: steps.check_changes.outputs.exists == 'false'
+        if: steps.check_changes.outputs.files_exists == 'false'
         uses: orhun/git-cliff-action@v4.6.0
         with:
           config: cliff.toml
           args: --unreleased
         env:
           OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
 
       - name: Read changelog
-        id: read_changes
+        id: changelog_reader
         uses: mindsers/changelog-reader-action@v2
         with:
-          path: CHANGES.md
+          path: ./CHANGES.md
           validation_level: none
+          version: "Unreleased"
 
       - name: Calculate next version
         id: version
         run: |
           next_version=$(./bin/next_version.sh)
-          echo "version=$next_version" >> $GITHUB_OUTPUT
+          echo "NEXT_VERSION=$next_version" >> $GITHUB_OUTPUT
           echo "Next version: $next_version"
 
-      - name: Insert entry into CHANGELOG.md
+      - name: Insert changes into CHANGELOG.md
+        env:
+          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
         run: |
-          # Keep the "# Changelog" header, insert new entry, then append existing entries
-          {
-            head -2 CHANGELOG.md
-            tail -n +3 CHANGES.md
-            echo ""
-            tail -n +3 CHANGELOG.md
-          } > CHANGELOG.tmp
-          mv CHANGELOG.tmp CHANGELOG.md
-
-      - name: Format changelog for Slack
-        id: slack_format
-        if: env.SLACK_BOT_TOKEN != ''
-        run: |
-          BLOCKS=$(CHANGELOG="$(cat CHANGES.md | head -50)" NEXT_VERSION="${{ steps.version.outputs.version }}" node bin/format-changelog.js)
-          echo "blocks=$BLOCKS" >> $GITHUB_OUTPUT
+          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
+          insert_changelog="$(printf "\n## [${{ steps.version.outputs.NEXT_VERSION }}]\n\n%s" "$sanitized_changes")"
+          awk -v insert="$insert_changelog" 'NR==3{print insert}1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
 
       - name: Remove CHANGES.md
         run: rm -f CHANGES.md
+
+      - name: Make the CHANGELOG available to the js script
+        env:
+          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
+        run: |
+          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$sanitized_changes" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "NEXT_VERSION=${{ steps.version.outputs.NEXT_VERSION }}" >> $GITHUB_ENV
+
+      - name: Format changelog for Slack
+        id: format_changelog
+        run: |
+          node bin/format-changelog.js > slack_payload.json
+          echo "slack_payload=$(cat slack_payload.json)" >> $GITHUB_OUTPUT
+        env:
+          CHANGELOG: ${{ env.CHANGELOG }}
 
       - name: Post to Slack
         if: env.SLACK_BOT_TOKEN != ''
@@ -96,22 +111,27 @@ jobs:
           token: ${{ env.SLACK_BOT_TOKEN }}
           payload: |
             channel: "#product_releases"
-            blocks: ${{ steps.slack_format.outputs.blocks }}
+            text: "Uptick Shopify Extensibility ${{ steps.version.outputs.NEXT_VERSION }}"
+            blocks: ${{ steps.format_changelog.outputs.slack_payload }}
 
       - name: Commit changelog and tag
         uses: EndBug/add-and-commit@v9
         with:
           add: 'CHANGELOG.md'
           remove: 'CHANGES.md'
-          message: 'chore(release): ${{ steps.version.outputs.version }}'
-          tag: '${{ steps.version.outputs.version }}'
-          push: true
+          message: "${{ github.event.workflow_run.head_commit.message }}\n\nRelease ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
+          tag: '${{ steps.version.outputs.NEXT_VERSION }}'
+          commit: "--amend"
+          push: "--force-with-lease"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.version.outputs.version }}
-          name: ${{ steps.version.outputs.version }}
-          body: ${{ steps.read_changes.outputs.changes }}
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_TOKEN: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
+        with:
+          tag_name: ${{ steps.version.outputs.NEXT_VERSION }}
+          name: Release ${{ steps.version.outputs.NEXT_VERSION }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          draft: false
+          prerelease: false
+          make_latest: true

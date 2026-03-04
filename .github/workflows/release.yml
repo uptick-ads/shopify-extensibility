@@ -36,7 +36,6 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-          ref: ${{ github.event.workflow_run.head_sha }}
           token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
 
       - name: Check if already released

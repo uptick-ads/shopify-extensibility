@@ -19,9 +19,6 @@
 - Updating flow request to ensure we pass through referer
 
 ### ✨ Changed
-- NPM init
-- Bringing over initial files
-- updating to peer dependencies
 - Adding integrationId as a parameter for flow
 - Adding api version to api parameters
 - Adding confirmation_number to backend tracking

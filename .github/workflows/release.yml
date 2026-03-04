@@ -1,0 +1,157 @@
+name: "Release"
+
+on:
+  workflow_run:
+    workflows: [Test]
+    branches: [main]
+    types:
+      - completed
+
+concurrency:
+  group: production_release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+run-name: "Release: ${{ github.event.workflow_run.head_commit.message }}"
+
+jobs:
+  Release:
+    runs-on: ubuntu-latest
+    if: ${{ github.actor != 'uptick-bot' && github.event.workflow_run.conclusion == 'success' }}
+
+    steps:
+      - name: Load credentials
+        uses: 1password/load-secrets-action@v3
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          PPX_DIGITAL_ACTIONS_PAT: op://uptick-production/github-actions/github-personal-access-token
+          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
+
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ github.event.workflow_run.head_sha }}
+          token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
+
+      - name: Check if already released
+        id: check_tag
+        run: |
+          if git tag --points-at HEAD | grep -q '.'; then
+            echo "skip=true" >> $GITHUB_OUTPUT
+            echo "HEAD already has a tag — skipping release."
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Set up Node.js
+        if: steps.check_tag.outputs.skip == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Check for CHANGES.md
+        if: steps.check_tag.outputs.skip == 'false'
+        id: check_changes
+        uses: andstor/file-existence-action@v3
+        with:
+          files: CHANGES.md
+
+      - name: Generate changelog with git-cliff
+        if: steps.check_tag.outputs.skip == 'false' && steps.check_changes.outputs.files_exists == 'false'
+        uses: orhun/git-cliff-action@v4.6.0
+        with:
+          config: cliff.toml
+          args: --unreleased
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Read changelog
+        if: steps.check_tag.outputs.skip == 'false'
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          path: ./CHANGES.md
+          validation_level: none
+          version: "Unreleased"
+
+      - name: Calculate next version
+        if: steps.check_tag.outputs.skip == 'false'
+        id: version
+        run: |
+          next_version=$(./bin/next_version.sh)
+          echo "NEXT_VERSION=$next_version" >> $GITHUB_OUTPUT
+          echo "Next version: $next_version"
+
+      - name: Insert changes into CHANGELOG.md
+        if: steps.check_tag.outputs.skip == 'false'
+        env:
+          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
+        run: |
+          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
+          insert_changelog="$(printf "\n## [${{ steps.version.outputs.NEXT_VERSION }}] - $(date +%Y-%m-%d)\n\n%s" "$sanitized_changes")"
+          awk -v insert="$insert_changelog" 'NR==3{print insert}1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
+
+      - name: Remove CHANGES.md
+        if: steps.check_tag.outputs.skip == 'false'
+        run: rm -f CHANGES.md
+
+      - name: Make the CHANGELOG available to the js script
+        if: steps.check_tag.outputs.skip == 'false'
+        env:
+          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
+        run: |
+          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
+          echo "$CHANGELOG_CHANGES" >> $GITHUB_ENV
+          echo "EOF" >> $GITHUB_ENV
+          echo "NEXT_VERSION=${{ steps.version.outputs.NEXT_VERSION }}" >> $GITHUB_ENV
+
+      - name: Format changelog for Slack
+        if: steps.check_tag.outputs.skip == 'false'
+        id: format_changelog
+        run: |
+          node bin/format-changelog.js > slack_payload.json
+          echo "slack_payload=$(cat slack_payload.json)" >> $GITHUB_OUTPUT
+        env:
+          CHANGELOG: ${{ env.CHANGELOG }}
+
+      - name: Post to Slack
+        if: steps.check_tag.outputs.skip == 'false' && env.SLACK_BOT_TOKEN != ''
+        uses: slackapi/slack-github-action@v2.1.1
+        with:
+          method: chat.postMessage
+          token: ${{ env.SLACK_BOT_TOKEN }}
+          payload: |
+            channel: "#product_releases"
+            text: "Uptick Shopify Extensibility ${{ steps.version.outputs.NEXT_VERSION }}"
+            blocks: ${{ steps.format_changelog.outputs.slack_payload }}
+
+      - name: Commit changelog and tag
+        if: steps.check_tag.outputs.skip == 'false'
+        uses: EndBug/add-and-commit@v9
+        with:
+          add: 'CHANGELOG.md'
+          remove: 'CHANGES.md'
+          message: "${{ github.event.workflow_run.head_commit.message }}\n\nRelease ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
+          tag: '${{ steps.version.outputs.NEXT_VERSION }}'
+          commit: "--amend"
+          push: "--force-with-lease"
+
+      - name: Create GitHub Release
+        if: steps.check_tag.outputs.skip == 'false'
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
+        with:
+          tag_name: ${{ steps.version.outputs.NEXT_VERSION }}
+          name: Release ${{ steps.version.outputs.NEXT_VERSION }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          draft: false
+          prerelease: false
+          make_latest: true

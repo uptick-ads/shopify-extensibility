@@ -1,6 +1,8 @@
 # Changelog
 
 
+## [2026.3.4+2] - 2026-03-04
+
 ## [2026.3.4+1] - 2026-03-04
 
 ### 🚀 Added
@@ -41,6 +43,7 @@
 
 ### 🧪 Testing
 - Adding additional api tests
+
 ## [0.0.0] - 2025-01-15
 
 ### ✨ Changed

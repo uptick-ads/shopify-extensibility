@@ -5,7 +5,11 @@
   "scripts": {
     "lint": "npx eslint \"**/*.{js,jsx}\"",
     "lint:fix": "npx eslint --fix \"**/*.{js,jsx}\"",
-    "test": "NODE_ENV=test jest"
+    "test": "NODE_ENV=test jest",
+    "prepare": "[ -d .git ] && husky || true",
+    "changelog": "npx git-cliff --unreleased -o CHANGES.md",
+    "changelog:full": "npx git-cliff -o CHANGELOG.md",
+    "version:next": "./bin/next_version.sh"
   },
   "author": "Uptick",
   "license": "MIT",
@@ -15,18 +19,19 @@
     "@eslint/js": "^9.39.0",
     "@remote-ui/testing": "^1.4.3",
     "@shopify/react-testing": "^6.0.0",
+    "@shopify/ui-extensions": "2025.7.x",
+    "@shopify/ui-extensions-react": "2025.7.x",
+    "@types/react": "^18.0.0",
     "deepmerge": "^4.3.1",
     "eslint": "^9.39.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-react": "^7.37.4",
     "globals": "^16.0.0",
+    "husky": "^9.1.7",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
     "react": "^18.0.0",
-    "@shopify/ui-extensions": "2025.7.x",
-    "@shopify/ui-extensions-react": "2025.7.x",
-    "react-reconciler": "0.29.0",
-    "@types/react": "^18.0.0"
+    "react-reconciler": "0.29.0"
   }
 }

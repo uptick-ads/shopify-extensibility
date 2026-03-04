@@ -115,7 +115,9 @@ jobs:
         id: format_changelog
         run: |
           node bin/format-changelog.js > slack_payload.json
-          echo "slack_payload=$(cat slack_payload.json)" >> $GITHUB_OUTPUT
+          echo "slack_payload<<EOF" >> $GITHUB_OUTPUT
+          cat slack_payload.json >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
         env:
           CHANGELOG: ${{ env.CHANGELOG }}
 

@@ -27,7 +27,10 @@ jobs:
   GenerateChangelog:
     runs-on: ubuntu-latest
     name: Generate Changelog
-    if: ${{ github.event_name == 'pull_request' && github.ref != 'refs/heads/main' }}
+    if: >-
+      ${{ github.event_name == 'pull_request' &&
+          github.event.pull_request.head.repo.full_name == github.repository &&
+          github.ref != 'refs/heads/main' }}
 
     steps:
       - name: Load credentials

@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.3.4+3] - 2026-03-04
+
+### 🐛 Fixed
+- Only generate change log for internal branches
+
 ## [2026.3.4+2] - 2026-03-04
 
 ## [2026.3.4+1] - 2026-03-04

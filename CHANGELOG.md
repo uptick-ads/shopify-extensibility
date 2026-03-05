@@ -1,56 +1,44 @@
 # Changelog
 
 
+## [2026.3.5+1] - 2026-03-05
+
+### 🔧 Miscellaneous
+- Summarizing Change Log
+
 ## [2026.3.4+3] - 2026-03-04
 
 ### 🐛 Fixed
-- Only generate change log for internal branches
+- Changelog generation now runs only for internal branches.
 
 ## [2026.3.4+2] - 2026-03-04
+
+### ✨ Changed
+- Internal release metadata update.
 
 ## [2026.3.4+1] - 2026-03-04
 
 ### 🚀 Added
-- Adding unified component for rendering offer
-- Updating rejected to loading and rejectOffer to nextOffer
-- Ensure we call new offer with GET
-- Adding headers to api calls
-- Adding support for UptickFlow with loading and nextOffer to move to next offer on accept
-- Adding options to api constructor
-- Changelog and release notifications
+- New `UptickFlow` component with loading and next-offer progression support.
+- Unified offer-rendering component architecture.
+- API client constructor options and release/changelog notification support.
 
 ### 🐛 Fixed
-- Better action layout and display
-- Increase image size
-- Additional api context
-- Fixing test from changes
-- Updating flow request to ensure we pass through referer
+- Flow requests now pass referer and include required API context.
+- Offer retrieval flow uses GET for next-offer requests.
 
 ### ✨ Changed
-- Adding integrationId as a parameter for flow
-- Adding api version to api parameters
-- Adding confirmation_number to backend tracking
-- Removing package components to import as git sub module
-- Adding additional shop params
-- Adding v1 components
-- Simplifying package to keep lint and tests
-- Fixing relative paths
-- Adding support for Offer link accept and reject
-- Use dynamic flow for integration ids
-- Fix offer badges stacking vertically
-- Updating tests for new flow url
-- Reverting start index
-- Rename to UptickFlow
-- Apply suggestions from code review
-- Updating to UI-Extension 2025-07
-- Updating eslint and jest to latest versions
-- Fixing sponsored line spacing
+- Flow now supports dynamic `integrationId` and additional shop parameters.
+- API payloads now include versioning and `confirmation_number` tracking.
+- Offer links support accept and reject actions.
+- Extraction package simplified and migrated away from git submodule component imports.
+- Upgraded to Shopify UI Extensions `2025-07` and refreshed lint/test tooling.
 
 ### 🧪 Testing
-- Adding additional api tests
+- Expanded API test coverage for the new flow behavior.
 
 ## [0.0.0] - 2025-01-15
 
 ### ✨ Changed
-- Initial commit
+- Initial commit.
 

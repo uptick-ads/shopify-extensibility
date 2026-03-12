@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.3.12+2] - 2026-03-12
+
+### 🚀 Added
+- Dependabot workflow checks
+
 ## [2026.3.12+1] - 2026-03-12
 
 ### 🔧 Miscellaneous

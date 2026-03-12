@@ -61,7 +61,7 @@ jobs:
 
       - name: Generate a changelog
         if: steps.check_changes.outputs.files_exists == 'false'
-        uses: orhun/git-cliff-action@v4.6.0
+        uses: orhun/git-cliff-action@v4.7.1
         with:
           config: cliff.toml
           args: --unreleased

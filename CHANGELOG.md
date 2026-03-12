@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.3.12+1] - 2026-03-12
+
+### 🔧 Miscellaneous
+- Bring CI config up to date
+
 ## [2026.3.5+1] - 2026-03-05
 
 ### 🔧 Miscellaneous

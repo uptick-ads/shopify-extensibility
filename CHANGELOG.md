@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [2026.3.12+4] - 2026-03-12
+
+### Chore
+- *(deps)* Bump actions/checkout from 5 to 6
+- *(deps)* Bump orhun/git-cliff-action from 4.6.0 to 4.7.1
+- *(deps)* Bump actions/setup-node from 5 to 6
+
 ## [2026.3.12+3] - 2026-03-12
 
 ### 🔧 Miscellaneous

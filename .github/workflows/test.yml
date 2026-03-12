@@ -84,7 +84,10 @@ jobs:
 
   Lint:
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'uptick-bot' || (github.actor == 'uptick-bot' && github.event.head_commit.message == 'Generating CHANGES.md') }}
+    if: >-
+      ${{ github.actor != 'uptick-bot' ||
+          github.event_name == 'pull_request' ||
+          (github.actor == 'uptick-bot' && github.event.head_commit.message == 'Generating CHANGES.md') }}
 
     steps:
       - name: Checkout code
@@ -103,7 +106,10 @@ jobs:
 
   Test:
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'uptick-bot' || (github.actor == 'uptick-bot' && github.event.head_commit.message == 'Generating CHANGES.md') }}
+    if: >-
+      ${{ github.actor != 'uptick-bot' ||
+          github.event_name == 'pull_request' ||
+          (github.actor == 'uptick-bot' && github.event.head_commit.message == 'Generating CHANGES.md') }}
 
     steps:
       - name: Checkout code

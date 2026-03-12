@@ -11,6 +11,9 @@ concurrency:
   group: production_release
   cancel-in-progress: false
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 permissions:
   contents: write
 
@@ -32,7 +35,7 @@ jobs:
           SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
@@ -49,9 +52,9 @@ jobs:
 
       - name: Set up Node.js
         if: steps.check_tag.outputs.skip == 'false'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Check for CHANGES.md
         if: steps.check_tag.outputs.skip == 'false'

@@ -4,13 +4,16 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - "**"
+      - main
     tags-ignore:
       - "**"
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, synchronize]
     branches:
       - main
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,7 +45,7 @@ jobs:
           PPX_DIGITAL_ACTIONS_PAT: op://uptick-production/github-actions/github-personal-access-token
 
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           repository: ${{ github.event.pull_request.head.repo.full_name }}
           ref: ${{ github.event.pull_request.head.ref }}
@@ -85,12 +88,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: npm install
@@ -104,12 +107,12 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Set up Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install dependencies
         run: npm install

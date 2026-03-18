@@ -77,8 +77,18 @@ export default class Api {
       // Add options to URL
       this.addOptionsToUrl(url);
 
+      // Avoid CORS redirect issues in Safari for the /shopify endpoint
+      if (this.flowURL.endsWith("/places/flows/shopify")) {
+        url.searchParams.set("no_redirect", "1");
+      }
+
       this.setLoading(true);
       this.flow = await this.fetchResult(url.toString(), { setLoader: this.noop });
+
+      // Handle no_redirect response — follow flow_url if present
+      if (isPresent(this.flow?.flow_url)) {
+        this.flow = await this.fetchResult(this.flow.flow_url, { setLoader: this.noop });
+      }
 
       if (this.flow == null) {
         this.captureWarning("Unable to get flow. Response was null.");
@@ -155,7 +165,17 @@ export default class Api {
       this.captureException(error, { extra: { message: "Unable to get shop api information" } });
     }
 
+    // Avoid CORS redirect issues for reject endpoints
+    if (method === "POST") {
+      url.searchParams.set("no_redirect", "1");
+    }
+
     const offerResult = await this.fetchResult(url.toString(), { method, setLoader });
+
+    // Handle no_redirect response — follow next_offer_url if present
+    if (isPresent(offerResult?.next_offer_url)) {
+      return await this.getOfferBase(offerResult.next_offer_url, { setLoader });
+    }
 
     if (offerResult == null) {
       this.captureWarning("Unable to get offer result was null.");

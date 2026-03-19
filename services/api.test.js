@@ -99,6 +99,10 @@ function generateFlowURL(api, placement, integrationID = null) {
   url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
   url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
 
+  if (integrationID == null) {
+    url.searchParams.set("no_redirect", "1");
+  }
+
   return url.toString();
 }
 
@@ -392,6 +396,37 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
 
+    test("handles flow_url response with two-step fetch", async () => {
+      const api = createApi();
+      const flowUrlResponse = {
+        flow_url: "https://api.uptick.com/v1/places/place-id/flows/flow-id?param=value"
+      };
+      const flowResult = {
+        links: {
+          next_offer: "offer_url"
+        }
+      };
+      jest.spyOn(api, "fetchResult")
+        .mockImplementationOnce(() => flowUrlResponse)
+        .mockImplementationOnce(() => flowResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+      jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+
+      const result = await api.getInitialOffer("order_confirmation");
+      expect(result).toBe("offer");
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(2);
+      expect(api.fetchResult).toHaveBeenNthCalledWith(1, generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenNthCalledWith(2, flowUrlResponse.flow_url, { setLoader: api.noop });
+
+      expect(api.getOfferBase).toHaveBeenCalledTimes(1);
+      expect(api.getOfferBase).toHaveBeenCalledWith("offer_url", { setLoader: api.noop });
+
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
     test("with integrationID if flow response is valid calls getOfferBase", async () => {
       const api = createApi(true, { integrationId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" });
       const returnResult = {
@@ -627,6 +662,51 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(1);
       expect(api.captureWarning).toHaveBeenCalledWith("Offer contained no data.");
+    });
+
+    test("handles next_offer_url response from reject endpoint with two-step fetch", async () => {
+      const rejectUrlBase = "https://api.uptick.com/evt/flows/flow-id/events/event-id/reject";
+      const nextOfferUrl = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=1";
+
+      const api = createApi();
+      const rejectResponse = {
+        next_offer_url: nextOfferUrl
+      };
+      const offerResult = {
+        api_version: "v1",
+        data: [{
+          type: "offer",
+          attributes: { something: true }
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
+      };
+
+      jest.spyOn(api, "fetchResult")
+        .mockImplementationOnce(() => rejectResponse)
+        .mockImplementationOnce(() => offerResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getOfferBase(rejectUrlBase, { method: "POST", setLoader: api.setLoading });
+
+      expect(result.type).toBe("offer");
+      expect(result.api_version).toBe("v1");
+      expect(result.attributes.something).toBe(true);
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(2);
+
+      // First call should have no_redirect=1 and method POST
+      const firstCallUrl = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(firstCallUrl.searchParams.get("no_redirect")).toBe("1");
+      expect(api.fetchResult.mock.calls[0][1].method).toBe("POST");
+
+      // Second call should be to the next_offer_url (with shop params added), method undefined (GET)
+      const secondCallUrl = api.fetchResult.mock.calls[1][0];
+      expect(secondCallUrl).toContain("places/place-id/flows/flow-id/offers/new");
+      expect(api.fetchResult.mock.calls[1][1].method).toBeUndefined();
+
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
 
     test("if v1 data is type offer sets correctly", async () => {

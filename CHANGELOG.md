@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.3.19+1] - 2026-03-19
+
+### 🚀 Added
+- A no redirect option to existing calls
+
 ## [2026.3.12+4] - 2026-03-12
 
 ### Chore

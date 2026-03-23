@@ -108,8 +108,9 @@ jobs:
         env:
           CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
         run: |
+          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
           echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          echo "$CHANGELOG_CHANGES" >> $GITHUB_ENV
+          printf "%s\n" "$sanitized_changes" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
           echo "NEXT_VERSION=${{ steps.version.outputs.NEXT_VERSION }}" >> $GITHUB_ENV
 
@@ -141,10 +142,8 @@ jobs:
         with:
           add: 'CHANGELOG.md'
           remove: 'CHANGES.md'
-          message: "${{ github.event.workflow_run.head_commit.message }}\n\nRelease ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
+          message: "chore: Release ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
           tag: '${{ steps.version.outputs.NEXT_VERSION }}'
-          commit: "--amend"
-          push: "--force-with-lease"
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.skip == 'false'

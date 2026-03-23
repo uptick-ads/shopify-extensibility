@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.3.23+1] - 2026-03-23
+
+### 🐛 Fixed
+- Update release configuration to use token
+
 ## [2026.3.19+1] - 2026-03-19
 
 ### 🚀 Added

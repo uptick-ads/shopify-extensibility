@@ -149,9 +149,8 @@ jobs:
       - name: Create GitHub Release
         if: steps.check_tag.outputs.skip == 'false'
         uses: softprops/action-gh-release@v2
-        env:
-          GITHUB_TOKEN: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
         with:
+          token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
           tag_name: ${{ steps.version.outputs.NEXT_VERSION }}
           name: Release ${{ steps.version.outputs.NEXT_VERSION }}
           body: ${{ steps.changelog_reader.outputs.changes }}

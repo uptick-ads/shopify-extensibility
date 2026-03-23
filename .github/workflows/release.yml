@@ -101,7 +101,7 @@ jobs:
 
       - name: Remove CHANGES.md
         if: steps.check_tag.outputs.skip == 'false'
-        run: rm -f CHANGES.md
+        run: git rm -f --ignore-unmatch CHANGES.md
 
       - name: Make the CHANGELOG available to the js script
         if: steps.check_tag.outputs.skip == 'false'
@@ -141,7 +141,6 @@ jobs:
         uses: EndBug/add-and-commit@v9
         with:
           add: 'CHANGELOG.md'
-          remove: 'CHANGES.md'
           message: "chore: Release ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
           tag: '${{ steps.version.outputs.NEXT_VERSION }}'
 

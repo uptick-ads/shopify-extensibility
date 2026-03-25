@@ -56,6 +56,13 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
         }
       }
     },
+    buyerIdentity: {
+      customer: {
+        current: {
+          id: "gid://shopify/Customer/8610705670358"
+        }
+      }
+    },
     extension: {
       target: "thank-you.block",
       version: "uptick_58",
@@ -133,6 +140,10 @@ function generateOfferURL(api) {
     url.searchParams.set("currency", api.shopApi.cost.totalAmount.current.currencyCode);
     url.searchParams.set("total_price", api.shopApi.cost.totalAmount.current.amount);
     url.searchParams.set("shipping_price", api.shopApi.cost.totalShippingAmount.current.amount);
+  }
+
+  if (api.shopApi?.buyerIdentity?.customer?.current?.id != null) {
+    url.searchParams.set("customer_id", api.shopApi.buyerIdentity.customer.current.id);
   }
 
   if (api.shopApi?.shippingAddress != null) {
@@ -759,6 +770,56 @@ describe("api", () => {
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(1);
 
       expect(api.setLoading).toHaveBeenCalledTimes(0);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
+    test("excludes customer_id when buyerIdentity is missing", async () => {
+      const api = createApi();
+      delete api.shopApi.buyerIdentity;
+
+      const returnResult = {
+        api_version: "v1",
+        data: [{
+          type: "offer",
+          attributes: { something: true }
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
+      };
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+
+      const calledUrl = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(calledUrl.searchParams.has("customer_id")).toBe(false);
+      expect(calledUrl.searchParams.has("shop_id")).toBe(true);
+
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
+    test("includes customer_id when buyerIdentity is present", async () => {
+      const api = createApi();
+
+      const returnResult = {
+        api_version: "v1",
+        data: [{
+          type: "offer",
+          attributes: { something: true }
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
+      };
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+
+      const calledUrl = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(calledUrl.searchParams.get("customer_id")).toBe("gid://shopify/Customer/8610705670358");
+
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });

@@ -150,6 +150,9 @@ export default class Api {
       this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
       this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
 
+      // Customer information
+      this.addParam(url, this.shopApi?.buyerIdentity?.customer?.current?.id, "customer_id");
+
       // Address information (may fail if shop doesn't have access)
       this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
       this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");

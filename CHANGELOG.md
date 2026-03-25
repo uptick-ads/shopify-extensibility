@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.3.25+1] - 2026-03-25
+
+### 🔧 Miscellaneous
+- Pull in customer id from Shop Api
+
 ## [2026.3.23+3] - 2026-03-23
 
 ## [2026.3.23+2] - 2026-03-23

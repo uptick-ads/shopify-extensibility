@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [2026.4.13+1] - 2026-04-13
+
+### Chore
+- *(deps)* Bump EndBug/add-and-commit from 9 to 10
+- *(deps)* Bump 1password/load-secrets-action from 3 to 4
+- *(deps)* Bump slackapi/slack-github-action from 2.1.1 to 3.0.1
+
 ## [2026.3.25+1] - 2026-03-25
 
 ### 🔧 Miscellaneous

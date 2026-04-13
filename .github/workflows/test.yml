@@ -38,7 +38,7 @@ jobs:
 
     steps:
       - name: Load credentials
-        uses: 1password/load-secrets-action@v3
+        uses: 1password/load-secrets-action@v4
         with:
           export-env: true
         env:

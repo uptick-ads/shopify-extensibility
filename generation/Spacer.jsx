@@ -1,14 +1,13 @@
-import {
-  InlineSpacer
-} from "@shopify/ui-extensions-react/checkout";
-
 import { isEmpty } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
+import { translateAttributes, translateSpacing } from "../utilities/translateAttributes";
 
 export default function generateSpacer({ defaultKeyName, keyIndex, item }) {
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
+  const attrs = translateAttributes(formatAttributes(item), "spacer");
+  const spacing = translateSpacing(attrs.spacing ?? attrs.gap ?? "base");
 
   return (
-    <InlineSpacer key={`spacer-${keyName}-${keyIndex}`} {...formatAttributes(item)} />
+    <s-box key={`spacer-${keyName}-${keyIndex}`} paddingInline={spacing}></s-box>
   );
 }

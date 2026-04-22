@@ -1,7 +1,3 @@
-import {
-  View
-} from "@shopify/ui-extensions-react/checkout";
-
 // Generated
 import Generator from "../generation/Generator.jsx";
 
@@ -11,8 +7,8 @@ export default function OrderConfirmedHeader({ header }) {
   }
 
   return (
-    <View border="base" padding="base" background="subdued">
+    <s-box border="base" padding="base" background="subdued">
       {Generator({ defaultKeyName: "header", items: header })}
-    </View>
+    </s-box>
   );
 }

@@ -1,17 +1,24 @@
-import {
-  Text
-} from "@shopify/ui-extensions-react/checkout";
-
 import { isEmpty } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
+import { translateAttributes } from "../utilities/translateAttributes";
 
-export default function generateText({ defaultKeyName, keyIndex, item, children, _options }) {
+export default function generateText({ defaultKeyName, keyIndex, item, children, _options, parentType }) {
   const content = isEmpty(item.text) ? children : item.text;
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
+  const attrs = translateAttributes(formatAttributes(item), "text");
+  const isInline = ["text", "link", "paragraph", "button", "heading"].includes(parentType);
+
+  if (isInline) {
+    return (
+      <s-text key={`text-${keyName}-${keyIndex}`} {...attrs}>
+        {content}
+      </s-text>
+    );
+  }
 
   return (
-    <Text key={`text-${keyName}-${keyIndex}`} {...formatAttributes(item)}>
+    <s-paragraph key={`text-${keyName}-${keyIndex}`} {...attrs}>
       {content}
-    </Text>
+    </s-paragraph>
   );
 }

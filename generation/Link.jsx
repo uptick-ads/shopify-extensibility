@@ -1,9 +1,6 @@
-import {
-  Link
-} from "@shopify/ui-extensions-react/checkout";
-
 import { isEmpty, isPresent } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
+import { translateAttributes } from "../utilities/translateAttributes";
 import { createDynamicAttributes } from "./Button.jsx";
 
 export default function generateLink({ defaultKeyName, keyIndex, item, children, options }) {
@@ -19,15 +16,16 @@ export default function generateLink({ defaultKeyName, keyIndex, item, children,
     // No logging comment here as we can have links without the options
 
     // If we have callbacks, add to link.
-    // TODO: We need to update this on v2
     if (loading != null || nextOffer != null) {
       attributes = createDynamicAttributes(item, loading, nextOffer);
     }
   }
 
+  attributes = translateAttributes(attributes, "link");
+
   return (
-    <Link key={`link-${keyName}-${keyIndex}`} {...attributes}>
+    <s-link key={`link-${keyName}-${keyIndex}`} {...attributes}>
       {content}
-    </Link>
+    </s-link>
   );
 }

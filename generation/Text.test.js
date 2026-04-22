@@ -4,9 +4,7 @@
 
 import generateText from "./Text.jsx";
 import {describe, expect, test} from "@jest/globals";
-import { mount } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import { Text } from "@shopify/ui-extensions/checkout";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
 
 const base = {
@@ -19,40 +17,43 @@ const base = {
   }
 };
 
-function mountMerge(extra = {}) {
-  const generatedComponent = generateText(merge(base, extra));
-  return mount(generatedComponent);
+function renderComponent(extra = {}) {
+  const { container } = render(generateText(merge(base, extra)));
+  return container.firstElementChild;
 }
 
 describe("Generates Text Component", () => {
-  test("creates with key and text", () => {
-    const component = mountMerge();
-    expect(component.is(Text)).toBeTruthy();
-    expect(component.text()).toBe("Custom");
-    expect(component.tree.key).toBe("text-test-1");
-    expect(Object.keys(component.props).length).toBe(1);
+  test("creates with key and text as s-paragraph (block context)", () => {
+    const el = renderComponent();
+    expect(el.tagName.toLowerCase()).toBe("s-paragraph");
+    expect(el.textContent).toBe("Custom");
   });
 
-  test("creates with custom property", () => {
-    const component = mountMerge({
+  test("creates as s-text in inline context", () => {
+    const el = renderComponent({ parentType: "link" });
+    expect(el.tagName.toLowerCase()).toBe("s-text");
+    expect(el.textContent).toBe("Custom");
+  });
+
+  test("creates with emphasis translated to type", () => {
+    const el = renderComponent({
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(Object.keys(component.props).length).toBe(2);
+    // emphasis "bold" → type "strong" for text
+    expect(el.getAttribute("type")).toBe("strong");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountMerge({
+    const el = renderComponent({
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(1);
+    expect(el.textContent).toBe("Children");
   });
 });

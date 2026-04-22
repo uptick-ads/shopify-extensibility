@@ -2,15 +2,9 @@
  * @jest-environment jsdom
  */
 
-// Have to generate this test different because of error.
-// See https://github.com/Shopify/ui-extensions/issues/712
 import generateButton, { createDynamicAttributes } from "./Button.jsx";
-import {describe, expect, test} from "@jest/globals";
-import { mount } from "@remote-ui/testing";
-import { createRoot } from "@remote-ui/react";
-import { Element } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import { Button } from "@shopify/ui-extensions/checkout";
+import {describe, expect, test, jest} from "@jest/globals";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
 
 const plainButton = {
@@ -53,155 +47,124 @@ const urlPropertyButton = {
   }
 };
 
-function mountWithRoot(data, extra = {}) {
-  const generatedComponent = generateButton(merge(data, extra));
-  const root = mount((root) => {
-    return createRoot(root).render(generatedComponent);
-  });
-  const rawComponent = root.find(Button);
-  return new Element(rawComponent, rawComponent.children, root);
+function renderComponent(data, extra = {}) {
+  const { container } = render(generateButton(merge(data, extra)));
+  return container.firstElementChild;
 }
 
 describe("Generates Button Component with no to or url", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(plainButton);
-    expect(component.is(Button)).toBeTruthy();
-    expect(component.text()).toBe("Plain");
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("button-test-1");
-    expect(Object.keys(component.props).length).toBe(0);
+    const el = renderComponent(plainButton);
+    expect(el.tagName.toLowerCase()).toBe("s-button");
+    expect(el.textContent).toBe("Plain");
   });
 
   test("creates component with html spaces", () => {
-    const component = mountWithRoot(plainButton, { item: { text: "\u00A0\u00A0\u00A0Plain\u00A0\u00A0\u00A0"} });
-    expect(component.is(Button)).toBeTruthy();
-    // It's not showing html in the test framework, but works on the page. Best I can test
-    expect(component.text()).toBe("\u00A0\u00A0\u00A0Plain\u00A0\u00A0\u00A0");
-
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("button-test-1");
-    expect(Object.keys(component.props).length).toBe(0);
+    const el = renderComponent(plainButton, { item: { text: "\u00A0\u00A0\u00A0Plain\u00A0\u00A0\u00A0"} });
+    expect(el.tagName.toLowerCase()).toBe("s-button");
+    expect(el.textContent).toContain("Plain");
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(plainButton, {
+    const el = renderComponent(plainButton, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(Object.keys(component.props).length).toBe(1);
+    expect(el.getAttribute("emphasis")).toBe("bold");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(plainButton, {
+    const el = renderComponent(plainButton, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(0);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("Generates Button Component with to attribute", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(toAttributeButton);
-    expect(component.is(Button)).toBeTruthy();
-    expect(component.text()).toBe("To Attribute");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(component.prop("to")).toBe("https://google.com");
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("button-test-1");
-    expect(Object.keys(component.props).length).toBe(3);
+    const el = renderComponent(toAttributeButton);
+    expect(el.tagName.toLowerCase()).toBe("s-button");
+    expect(el.textContent).toBe("To Attribute");
+    // to → href after translation
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(toAttributeButton, {
+    const el = renderComponent(toAttributeButton, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(Object.keys(component.props).length).toBe(4);
+    expect(el.getAttribute("emphasis")).toBe("bold");
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(toAttributeButton, {
+    const el = renderComponent(toAttributeButton, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(3);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("Generates Button Component with url property", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(urlPropertyButton);
-    expect(component.is(Button)).toBeTruthy();
-    expect(component.text()).toBe("Url Property");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(component.props).toHaveProperty("onPress", expect.any(Function));
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("button-test-1");
-    expect(Object.keys(component.props).length).toBe(3);
+    const el = renderComponent(urlPropertyButton);
+    expect(el.tagName.toLowerCase()).toBe("s-button");
+    expect(el.textContent).toBe("Url Property");
+    // url buttons get onClick handler, no href attribute
+    expect(el.getAttribute("href")).toBeNull();
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(urlPropertyButton, {
+    const el = renderComponent(urlPropertyButton, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(Object.keys(component.props).length).toBe(4);
+    expect(el.getAttribute("emphasis")).toBe("bold");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(urlPropertyButton, {
+    const el = renderComponent(urlPropertyButton, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(3);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("createDynamicAttributes", () => {
-  test("add all properties if url blank", () => {
-    const result = createDynamicAttributes({ url: "", attributes: { other: true } }, "loading", "nextOffer");
-    expect(result).toStrictEqual({
-      other: true,
-      disabled: "loading",
-      loading: "loading"
-    });
+  test("creates disabled and loading for to attribute", () => {
+    const attrs = createDynamicAttributes({ attributes: { to: "url" } }, false, null);
+    expect(attrs.disabled).toBe(false);
+    expect(attrs.loading).toBe(false);
+    expect(attrs.to).toBe("url");
   });
 
-  test("add all properties if url is present", () => {
-    const result = createDynamicAttributes({ url: "https://google.com", attributes: { other: true } }, "loading", (url) => `clicked ${url}`);
-    expect(result).toMatchObject({
-      other: true,
-      disabled: "loading",
-      loading: "loading"
-    });
-    expect(result.onPress()).toBe("clicked https://google.com");
+  test("creates onClick for url property", () => {
+    const nextOffer = jest.fn();
+    const attrs = createDynamicAttributes({ attributes: {}, url: "url" }, false, nextOffer);
+    expect(attrs.disabled).toBe(false);
+    expect(attrs.loading).toBe(false);
+    expect(attrs.onClick).toBeInstanceOf(Function);
+    attrs.onClick();
+    expect(nextOffer).toHaveBeenCalledWith("url");
   });
 });

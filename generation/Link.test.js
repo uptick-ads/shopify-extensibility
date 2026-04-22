@@ -2,15 +2,9 @@
  * @jest-environment jsdom
  */
 
-// Have to generate this test different because of error.
-// See https://github.com/Shopify/ui-extensions/issues/712
 import generateLink from "./Link.jsx";
 import {describe, expect, test} from "@jest/globals";
-import { mount } from "@remote-ui/testing";
-import { createRoot } from "@remote-ui/react";
-import { Element } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import { Link } from "@shopify/ui-extensions/checkout";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
 
 const plainLink = {
@@ -54,125 +48,102 @@ const urlPropertyLink = {
   }
 };
 
-function mountWithRoot(data, extra = {}) {
-  const generatedComponent = generateLink(merge(data, extra));
-  const root = mount((root) => {
-    return createRoot(root).render(generatedComponent);
-  });
-  const rawComponent = root.find(Link);
-  return new Element(rawComponent, rawComponent.children, root);
+function renderComponent(data, extra = {}) {
+  const { container } = render(generateLink(merge(data, extra)));
+  return container.firstElementChild;
 }
 
 describe("Generates Link Component", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(plainLink);
-    expect(component.is(Link)).toBeTruthy();
-    expect(component.text()).toBe("Plain");
-    // This isn't working since I had to hack it together
-    // expect(component.tree.key).toBe("link-test-1");
-    expect(component.prop("to")).toBe("https://google.com");
-    expect(Object.keys(component.props).length).toBe(1);
+    const el = renderComponent(plainLink);
+    expect(el.tagName.toLowerCase()).toBe("s-link");
+    expect(el.textContent).toBe("Plain");
+    // to → href after translation
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(plainLink, {
+    const el = renderComponent(plainLink, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("to")).toBe("https://google.com");
-    expect(Object.keys(component.props).length).toBe(2);
+    expect(el.getAttribute("emphasis")).toBe("bold");
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(plainLink, {
+    const el = renderComponent(plainLink, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(1);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("Generates Link Component with to attribute and options", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(toAttributeLink);
-    expect(component.is(Link)).toBeTruthy();
-    expect(component.text()).toBe("To Attribute");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(component.prop("to")).toBe("https://google.com");
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("button-test-1");
-    expect(Object.keys(component.props).length).toBe(3);
+    const el = renderComponent(toAttributeLink);
+    expect(el.tagName.toLowerCase()).toBe("s-link");
+    expect(el.textContent).toBe("To Attribute");
+    // to → href after translation
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(toAttributeLink, {
+    const el = renderComponent(toAttributeLink, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(Object.keys(component.props).length).toBe(4);
+    expect(el.getAttribute("emphasis")).toBe("bold");
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(toAttributeLink, {
+    const el = renderComponent(toAttributeLink, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(3);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("Generates Link Component with url property and options", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(urlPropertyLink);
-    expect(component.is(Link)).toBeTruthy();
-    expect(component.text()).toBe("Url Property");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(component.props).toHaveProperty("onPress", expect.any(Function));
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("button-test-1");
-    expect(Object.keys(component.props).length).toBe(3);
+    const el = renderComponent(urlPropertyLink);
+    expect(el.tagName.toLowerCase()).toBe("s-link");
+    expect(el.textContent).toBe("Url Property");
+    // url buttons get onClick handler, no href attribute
+    expect(el.getAttribute("href")).toBeNull();
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(urlPropertyLink, {
+    const el = renderComponent(urlPropertyLink, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(Object.keys(component.props).length).toBe(4);
+    expect(el.getAttribute("emphasis")).toBe("bold");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(urlPropertyLink, {
+    const el = renderComponent(urlPropertyLink, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(3);
+    expect(el.textContent).toBe("Children");
   });
 });

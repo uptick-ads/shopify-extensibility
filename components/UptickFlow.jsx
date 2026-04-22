@@ -1,8 +1,3 @@
-import {
-  View,
-  BlockSpacer
-} from "@shopify/ui-extensions-react/checkout";
-
 // v1 Components
 import OrderConfirmedHeader from "../v1_components/OrderConfirmedHeader.jsx";
 import UptickFooter from "../v1_components/UptickFooter.jsx";
@@ -129,37 +124,37 @@ export default function UptickOffer({ offer, loading, nextOffer, rejected, rejec
   let hasDescriptionOrImage = (offer?.attributes?.content || []).length > 0 || isPresent(offer?.attributes?.image?.url);
 
   return (
-    <View>
+    <s-box>
       <OrderConfirmedHeader
         header={offer?.attributes?.header}
       />
-      <View border="base" padding="base">
+      <s-box border="base" padding="base">
         {Generator({ defaultKeyName: "personalization", items: offer?.attributes?.personalization })}
-        { hasPersonalization && hasOffer && <BlockSpacer spacing="loose" /> }
+        { hasPersonalization && hasOffer && <s-box paddingBlock="large"></s-box> }
         <OfferBadges
           current={offer?.attributes?.offers?.current}
           start={offer?.attributes?.offers?.start}
           total={offer?.attributes?.offers?.size}
         />
-        { hasDescriptionOrImage && (hasOffer || hasPersonalization) && <BlockSpacer spacing="loose" /> }
+        { hasDescriptionOrImage && (hasOffer || hasPersonalization) && <s-box paddingBlock="large"></s-box> }
         <OfferImageWrapper image_url={offer?.attributes?.image?.url} >
           {Generator({ defaultKeyName: "sponsored", items: offer?.attributes?.sponsored })}
-          { offer?.attributes?.sponsored && <BlockSpacer spacing="extraTight" /> }
+          { offer?.attributes?.sponsored && <s-box paddingBlock="small-200"></s-box> }
           {Generator({ defaultKeyName: "content", items: offer?.attributes?.content })}
         </OfferImageWrapper>
-        <BlockSpacer spacing="loose" />
+        <s-box paddingBlock="large"></s-box>
         <OfferButtons
           actions={offer?.attributes?.actions}
           loading={loading}
           nextOffer={nextOffer}
         />
-        { (offer?.attributes?.disclaimer || []).length > 0 && <BlockSpacer spacing="extraTight" /> }
+        { (offer?.attributes?.disclaimer || []).length > 0 && <s-box paddingBlock="small-200"></s-box> }
         {Generator({ defaultKeyName: "disclaimer", items: offer?.attributes?.disclaimer })}
         <UptickFooter
           footer={offer.attributes.footer}
         />
-      </View>
+      </s-box>
       {children}
-    </View>
+    </s-box>
   );
 }

@@ -74,6 +74,11 @@ export default class Api {
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
+      // Pass editor context if present (theme/checkout editor preview)
+      if (this.shopApi?.extension?.editor) {
+        url.searchParams.set("editor", "1");
+      }
+
       // Add options to URL
       this.addOptionsToUrl(url);
 

@@ -1,17 +1,14 @@
-import {
-  Heading
-} from "@shopify/ui-extensions-react/checkout";
-
 import { isEmpty } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
+import { translateAttributes } from "../utilities/translateAttributes";
 
 export default function generateHeading({ defaultKeyName, keyIndex, item, children, _options }) {
   const content = isEmpty(item.text) ? children : item.text;
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
 
   return (
-    <Heading key={`heading-${keyName}-${keyIndex}`} {...formatAttributes(item)}>
+    <s-heading key={`heading-${keyName}-${keyIndex}`} {...translateAttributes(formatAttributes(item), "heading")}>
       {content}
-    </Heading>
+    </s-heading>
   );
 }

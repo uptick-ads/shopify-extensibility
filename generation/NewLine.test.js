@@ -4,9 +4,7 @@
 
 import generateNewLine from "./NewLine.jsx";
 import {describe, expect, test} from "@jest/globals";
-import { mount } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import { BlockSpacer } from "@shopify/ui-extensions/checkout";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
 
 const base = {
@@ -19,29 +17,29 @@ const base = {
   }
 };
 
-function mountMerge(extra = {}) {
-  const generatedComponent = generateNewLine(merge(base, extra));
-  return mount(generatedComponent);
+function renderComponent(extra = {}) {
+  const { container } = render(generateNewLine(merge(base, extra)));
+  return container.firstElementChild;
 }
 
 describe("Generates NewLine Component", () => {
-  test("creates with key", () => {
-    const component = mountMerge();
-    expect(component.is(BlockSpacer)).toBeTruthy();
-    expect(component.text()).toBe("");
-    expect(component.tree.key).toBe("newline-test-1");
-    expect(Object.keys(component.props).length).toBe(0);
+  test("creates with key as s-box", () => {
+    const el = renderComponent();
+    expect(el.tagName.toLowerCase()).toBe("s-box");
+    expect(el.textContent).toBe("");
+    // Default spacing is "base"
+    expect(el.getAttribute("paddingBlock")).toBe("base");
   });
 
-  test("creates with custom property", () => {
-    const component = mountMerge({
+  test("creates with translated spacing", () => {
+    const el = renderComponent({
       item: {
         attributes: {
           spacing: "tight"
         }
       }
     });
-    expect(component.prop("spacing")).toBe("tight");
-    expect(Object.keys(component.props).length).toBe(1);
+    // tight → small after translation
+    expect(el.getAttribute("paddingBlock")).toBe("small");
   });
 });

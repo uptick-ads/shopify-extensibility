@@ -1,10 +1,3 @@
-import {
-  View,
-  Grid,
-  Image,
-  Style
-} from "@shopify/ui-extensions-react/checkout";
-
 // Utils
 import { isEmpty } from "../utilities/present.js";
 
@@ -19,40 +12,37 @@ export default function OfferImageWrapper({ image_url, children }) {
   }
 
   return (
-    <Grid columns={
-        Style.default(["fill"])
-             .when({viewportInlineSize: {min: "medium"}}, ["fill", "auto"])
+    <s-grid gridTemplateColumns={
+        "@container (inline-size > 1023px) fill auto, fill"
       }
-      rows={"auto"}
-      spacing={"loose"}
+      gridTemplateRows={"auto"}
+      gap={"large"}
     >
-      <View display={
-          Style.default("auto")
-               .when({viewportInlineSize: {min: "medium"}}, "none")
+      <s-box display={
+          "@container (inline-size > 1023px) none, auto"
         }
         inlineAlignment={"center"}
       >
-        <View
+        <s-box
           maxBlockSize={MAX_BLOCK_SIZE}
           maxInlineSize={MAX_INLINE_SIZE}>
-          <Image source={image_url} />
-        </View>
-      </View>
-      <View>
+          <s-image src={image_url}></s-image>
+        </s-box>
+      </s-box>
+      <s-box>
         {children}
-      </View>
-      <View display={
-          Style.default("none")
-               .when({viewportInlineSize: {min: "medium"}}, "auto")
+      </s-box>
+      <s-box display={
+          "@container (inline-size > 1023px) auto, none"
         }
         blockAlignment={"end"}
       >
-        <View
+        <s-box
           maxBlockSize={MAX_BLOCK_SIZE}
           maxInlineSize={MAX_INLINE_SIZE}>
-          <Image source={image_url} />
-        </View>
-      </View>
-    </Grid>
+          <s-image src={image_url}></s-image>
+        </s-box>
+      </s-box>
+    </s-grid>
   );
 }

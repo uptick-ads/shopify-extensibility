@@ -23,6 +23,7 @@ export default function generate({
   options,
   level = 1,
   parentIndex = 0,
+  parentType = null,
   logInfo = false,
   logWarn = true,
   allowEmpty = false }) {
@@ -55,6 +56,7 @@ export default function generate({
         options: options,
         level: level + 1,
         parentIndex: keyIndex,
+        parentType: item.type,
         logInfo: logInfo,
         logWarn: logWarn,
         allowEmpty: allowEmpty
@@ -95,7 +97,7 @@ export default function generate({
     } else if (item.type === "spacer") {
       element = generateSpacer({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["spacer"] || {}) });
     } else if (item.type === "text") {
-      element = generateText({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["text"] || {}) });
+      element = generateText({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["text"] || {}), parentType: parentType });
     } else if (item.type === "view" || item.type === "modal") { // we don't support modals, default to a view
       element = generateView({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["view"] || {}) });
     } else {

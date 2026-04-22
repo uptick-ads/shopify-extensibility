@@ -18,39 +18,15 @@ describe("formatAttributes", () => {
     expect(formatAttributes({ attributes: { something: true }, desktop_attributes: { other: true }})).toStrictEqual({ something: true });
   });
 
-  test("combines desktop attributes into attributes with style helper", () => {
+  test("combines desktop attributes into container query string", () => {
     expect(formatAttributes({ attributes: { something: "asdf", sweet: "yes" }, desktop_attributes: { something: "xsyd", other: "aaaa"  }})).toStrictEqual({
-      "something": {
-        "conditionals": [
-          {
-            "conditions": {
-              "viewportInlineSize": {
-                "min": "medium",
-              },
-            },
-            "value": "xsyd",
-          },
-        ],
-        "default": "asdf"
-      },
+      "something": "@container (inline-size > 1023px) xsyd, asdf",
       "sweet": "yes",
     });
   });
 
-  test("skips existing conditions to handle re-rendering", () => {
-    let something = {
-      "conditionals": [
-        {
-          "conditions": {
-            "viewportInlineSize": {
-              "min": "medium",
-            },
-          },
-          "value": "xsyd",
-        },
-      ],
-      "default": "asdf"
-    };
+  test("skips existing container query strings to handle re-rendering", () => {
+    let something = "@container (inline-size > 1023px) xsyd, asdf";
 
     expect(formatAttributes({ attributes: { something: something, sweet: "yes" }, desktop_attributes: { something: "xsyd", other: "aaaa"  }})).toStrictEqual({
       "something": something,

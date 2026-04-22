@@ -1,8 +1,3 @@
-import {
-  Grid,
-  Style
-} from "@shopify/ui-extensions-react/checkout";
-
 // Generated
 import Generator from "../generation/Generator.jsx";
 
@@ -28,7 +23,7 @@ export default function OfferButtons({ actions, loading, nextOffer }) {
       item.attributes.border = "base";
       item.attributes.background = "base";
       item.attributes.padding = "base";
-      item.attributes.cornerRadius = "base";
+      item.attributes.borderRadius = "base";
       item.attributes.inlineAlignment = "center";
 
       item.children ||= [];
@@ -36,9 +31,8 @@ export default function OfferButtons({ actions, loading, nextOffer }) {
         type: "text",
         text: item.text,
         attributes: {
-          appearance: "subdued",
-          size: "base",
-          emphasis: "bold"
+          color: "subdued",
+          type: "strong"
         }
       });
       delete item.text;
@@ -57,10 +51,10 @@ export default function OfferButtons({ actions, loading, nextOffer }) {
   });
 
   return (
-    <Grid
-      columns={Style.default(["fill"]).when({ viewportInlineSize: { min: "small" }}, ["auto", "20px", "auto"])}
-      rows={Style.default(["fill", (allButtons ? "15px" : "0%"), "fill"]).when({ viewportInlineSize: { min: "small" }}, ["fill"])}
-      spacing="none" >
+    <s-grid
+      gridTemplateColumns={"@container (inline-size > 767px) auto 20px auto, fill"}
+      gridTemplateRows={allButtons ? "@container (inline-size > 767px) fill, fill 15px fill" : "@container (inline-size > 767px) fill, fill 0% fill"}
+      gap="none" >
       {
         Generator({
           defaultKeyName: "actions",
@@ -81,6 +75,6 @@ export default function OfferButtons({ actions, loading, nextOffer }) {
           }
         })
       }
-    </Grid>
+    </s-grid>
   );
 }

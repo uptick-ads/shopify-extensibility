@@ -2,15 +2,9 @@
  * @jest-environment jsdom
  */
 
-// Have to generate this test different because of error.
-// See https://github.com/Shopify/ui-extensions/issues/712
 import generatePressable from "./Pressable.jsx";
 import {describe, expect, test} from "@jest/globals";
-import { mount } from "@remote-ui/testing";
-import { createRoot } from "@remote-ui/react";
-import { Element } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import { Pressable } from "@shopify/ui-extensions/checkout";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
 
 const plainPressable = {
@@ -53,123 +47,99 @@ const urlPropertyPressable = {
   }
 };
 
-function mountWithRoot(data, extra = {}) {
-  const generatedComponent = generatePressable(merge(data, extra));
-  const root = mount((root) => {
-    return createRoot(root).render(generatedComponent);
-  });
-  const rawComponent = root.find(Pressable);
-  return new Element(rawComponent, rawComponent.children, root);
+function renderComponent(data, extra = {}) {
+  const { container } = render(generatePressable(merge(data, extra)));
+  return container.firstElementChild;
 }
 
 describe("Generates Pressable Component with no to or url", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(plainPressable);
-    expect(component.is(Pressable)).toBeTruthy();
-    expect(component.text()).toBe("Plain");
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("pressable-test-1");
-    expect(Object.keys(component.props).length).toBe(0);
+    const el = renderComponent(plainPressable);
+    expect(el.tagName.toLowerCase()).toBe("s-clickable");
+    expect(el.textContent).toBe("Plain");
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(plainPressable, {
+    const el = renderComponent(plainPressable, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(Object.keys(component.props).length).toBe(1);
+    expect(el.getAttribute("emphasis")).toBe("bold");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(plainPressable, {
+    const el = renderComponent(plainPressable, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(0);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("Generates Pressable Component with to attribute", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(toAttributePressable);
-    expect(component.is(Pressable)).toBeTruthy();
-    expect(component.text()).toBe("To Attribute");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(component.prop("to")).toBe("https://google.com");
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("pressable-test-1");
-    expect(Object.keys(component.props).length).toBe(3);
+    const el = renderComponent(toAttributePressable);
+    expect(el.tagName.toLowerCase()).toBe("s-clickable");
+    expect(el.textContent).toBe("To Attribute");
+    // to → href after translation
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(toAttributePressable, {
+    const el = renderComponent(toAttributePressable, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(Object.keys(component.props).length).toBe(4);
+    expect(el.getAttribute("emphasis")).toBe("bold");
+    expect(el.getAttribute("href")).toBe("https://google.com");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(toAttributePressable, {
+    const el = renderComponent(toAttributePressable, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(3);
+    expect(el.textContent).toBe("Children");
   });
 });
 
 describe("Generates Pressable Component with url property", () => {
   test("creates with key and text", () => {
-    const component = mountWithRoot(urlPropertyPressable);
-    expect(component.is(Pressable)).toBeTruthy();
-    expect(component.text()).toBe("Url Property");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(component.props).toHaveProperty("onPress", expect.any(Function));
-    // This isn't working since I had to hack it together with root mount
-    // expect(component.tree.key).toBe("pressable-test-1");
-    expect(Object.keys(component.props).length).toBe(3);
+    const el = renderComponent(urlPropertyPressable);
+    expect(el.tagName.toLowerCase()).toBe("s-clickable");
+    expect(el.textContent).toBe("Url Property");
+    // url pressables get onClick handler, no href attribute
+    expect(el.getAttribute("href")).toBeNull();
   });
 
   test("creates with custom property", () => {
-    const component = mountWithRoot(urlPropertyPressable, {
+    const el = renderComponent(urlPropertyPressable, {
       item: {
         attributes: {
           emphasis: "bold"
         }
       }
     });
-    expect(component.prop("emphasis")).toBe("bold");
-    expect(component.prop("disabled")).toBe(false);
-    expect(component.prop("loading")).toBe(false);
-    expect(Object.keys(component.props).length).toBe(4);
+    expect(el.getAttribute("emphasis")).toBe("bold");
   });
 
   test("creates with children if text is blank", () => {
-    const component = mountWithRoot(urlPropertyPressable, {
+    const el = renderComponent(urlPropertyPressable, {
       item: {
         text: ""
       },
       children: "Children"
     });
-    expect(component.text()).toBe("Children");
-    expect(Object.keys(component.props).length).toBe(3);
+    expect(el.textContent).toBe("Children");
   });
 });

@@ -1,8 +1,3 @@
-import {
-  View,
-  InlineLayout,
-} from "@shopify/ui-extensions-react/checkout";
-
 // Generated
 import Generator from "../generation/Generator.jsx";
 
@@ -12,12 +7,12 @@ export default function UptickFooter({ footer }) {
   }
 
   return (
-    <InlineLayout columns={["fill", "auto"]} padding={["base", "none", "none", "none"]}>
-      <View>
-      </View>
-      <View>
+    <s-grid gridTemplateColumns={["fill", "auto"]} padding={["base", "none", "none", "none"]}>
+      <s-box>
+      </s-box>
+      <s-box>
         {Generator({ defaultKeyName: "footer", items: footer })}
-      </View>
-    </InlineLayout>
+      </s-box>
+    </s-grid>
   );
 }

@@ -2,31 +2,10 @@
  * @jest-environment jsdom
  */
 
-// Have to generate this test different because of error.
-// See https://github.com/Shopify/ui-extensions/issues/712
 import generate from "./Generator.jsx";
 import {describe, expect, test} from "@jest/globals";
-import { mount } from "@remote-ui/testing";
-import { createRoot } from "@remote-ui/react";
-import { Element } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
-import {
-  Badge,
-  BlockLayout,
-  Button,
-  Grid,
-  Heading,
-  Icon,
-  Image,
-  InlineLayout,
-  Link,
-  BlockSpacer, // newline
-  InlineSpacer, // spacer
-  Pressable,
-  Text,
-  View
-} from "@shopify/ui-extensions/checkout";
 import { isPresent } from "../utilities/present.js";
 
 const badgeItem = {
@@ -133,56 +112,45 @@ const viewItem = {
 };
 
 const eachItem = [
-  { item: badgeItem, component: Badge },
-  { item: blockLayoutItem, component: BlockLayout },
-  { item: buttonItem, component: Button, options: { button: buttonOptions }, extra_attributes: 2 },
-  { item: gridItem, component: Grid },
-  { item: headingItem, component: Heading },
-  { item: iconItem, component: Icon },
-  { item: imageItem, component: Image },
-  { item: inlineLayoutItem, component: InlineLayout },
-  { item: linkItem, component: Link },
-  { item: newlineItem, component: BlockSpacer },
-  { item: pressableItem, component: Pressable },
-  { item: spacerItem, component: InlineSpacer },
-  { item: textItem, component: Text },
-  { item: viewItem, component: View }
+  { item: badgeItem, tagName: "s-badge" },
+  { item: blockLayoutItem, tagName: "s-grid" },
+  { item: buttonItem, tagName: "s-button", options: { button: buttonOptions } },
+  { item: gridItem, tagName: "s-grid" },
+  { item: headingItem, tagName: "s-heading" },
+  { item: iconItem, tagName: "s-icon" },
+  { item: imageItem, tagName: "s-image" },
+  { item: inlineLayoutItem, tagName: "s-grid" },
+  { item: linkItem, tagName: "s-link" },
+  { item: newlineItem, tagName: "s-box" },
+  { item: pressableItem, tagName: "s-clickable" },
+  { item: spacerItem, tagName: "s-box" },
+  { item: textItem, tagName: "s-paragraph" },
+  { item: viewItem, tagName: "s-box" }
 ];
 
-function mountRoot(items, options) {
+function renderGenerated(items, options) {
   const generatedComponents = generate({ defaultKeyName: "test", items: items, level: 1, options: options });
-  return mount((root) => {
-    return createRoot(root).render(generatedComponents);
-  });
-}
-
-function createElement(root, type) {
-  const rawComponent = root.find(type);
-  return new Element(rawComponent, rawComponent.children, root);
+  const { container } = render(generatedComponents);
+  return container;
 }
 
 describe("Generation Tests", () => {
   eachItem.forEach((detail) => {
     test(`creates ${detail.item.type} component`, () => {
-      const root = mountRoot([detail.item], detail.options);
-      const component = createElement(root, detail.component);
-      expect(component.is(detail.component)).toBeTruthy();
+      const container = renderGenerated([detail.item], detail.options);
+      const el = container.querySelector(detail.tagName);
+      expect(el).not.toBeNull();
       if (isPresent(detail.item.text)) {
-        expect(component.text()).toBe(detail.item.text);
+        expect(el.textContent).toBe(detail.item.text);
       } else {
-        expect(component.text()).toBe("");
+        expect(el.textContent).toBe("");
       }
-      expect(Object.keys(component.props).length).toBe(Object.keys(detail.item.attributes).length + (detail.extra_attributes || 0));
     });
 
     test(`creates 3 components of ${detail.item.type}`, () => {
-      const root = mountRoot([detail.item, detail.item, detail.item], detail.options);
-      const components = root.findAll(detail.component);
-      expect(components.length).toBe(3);
-      components.forEach((rawComponent) => {
-        const component = new Element(rawComponent, rawComponent.children, root);
-        expect(component.is(detail.component)).toBeTruthy();
-      });
+      const container = renderGenerated([detail.item, detail.item, detail.item], detail.options);
+      const elements = container.querySelectorAll(detail.tagName);
+      expect(elements.length).toBe(3);
     });
   });
 
@@ -213,25 +181,21 @@ describe("Generation Tests", () => {
     });
   });
 
-  test("creates text with child text and link", () => {
-    const parent = merge(textItem, {
+  test("creates text with child badge", () => {
+    const parent = {
+      ...textItem,
       text: "",
       children: [
         badgeItem
       ]
-    });
+    };
 
-    const generatedComponents = generate({ defaultKeyName: "test", items: [parent] });
-    const root = mount((root) => {
-      return createRoot(root).render(generatedComponents);
-    });
-    const rawComponent = root.find(Text);
+    const container = renderGenerated([parent]);
+    const textEl = container.querySelector("s-paragraph");
+    expect(textEl).not.toBeNull();
 
-    const viewComponent = new Element(rawComponent, rawComponent.children, root);
-    expect(viewComponent.is(Text)).toBeTruthy();
-
-    const childText = viewComponent.find(Badge);
-    expect(childText.is(Badge)).toBeTruthy();
-    expect(childText.text).toBe(badgeItem.text);
+    const childBadge = textEl.querySelector("s-badge");
+    expect(childBadge).not.toBeNull();
+    expect(childBadge.textContent).toBe(badgeItem.text);
   });
 });

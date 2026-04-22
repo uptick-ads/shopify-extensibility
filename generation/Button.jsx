@@ -1,10 +1,7 @@
-import {
-  Button
-} from "@shopify/ui-extensions-react/checkout";
-
-import { Fragment } from "react";
+import { Fragment } from "preact";
 import { isEmpty, isPresent } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
+import { translateAttributes } from "../utilities/translateAttributes";
 
 export function createDynamicAttributes(item, loading, nextOffer) {
   // If we don't have a url, it is assumed its a to property, then setup disabled button status only
@@ -19,7 +16,7 @@ export function createDynamicAttributes(item, loading, nextOffer) {
   let clickButton = {
     disabled: loading,
     loading: loading,
-    onPress: () => nextOffer(item.url)
+    onClick: () => nextOffer(item.url)
   };
   return { ...item.attributes, ...clickButton };
 }
@@ -63,6 +60,8 @@ export default function generateButton({ defaultKeyName, keyIndex, item, childre
     attributes = createDynamicAttributes(item, loading, nextOffer);
   }
 
+  attributes = translateAttributes(attributes, "button");
+
   let content = null;
   if (isEmpty(item.text)) {
     content = Array.isArray(children) ? children : [children];
@@ -71,8 +70,8 @@ export default function generateButton({ defaultKeyName, keyIndex, item, childre
   }
 
   return (
-    <Button key={key} {...attributes}>
+    <s-button key={key} {...attributes}>
       {content.map(e => e)}
-    </Button>
+    </s-button>
   );
 }

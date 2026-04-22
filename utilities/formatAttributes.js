@@ -1,6 +1,27 @@
-import {
-  Style
-} from "@shopify/ui-extensions-react/checkout";
+import { translateSpacing, translateBorderRadius } from "./translateAttributes";
+
+// Translate a single token value (spacing or borderRadius) to the new scale
+function translateTokenValue(value) {
+  if (value == null) return value;
+  if (typeof value === "string") {
+    return translateSpacing(value) ?? translateBorderRadius(value) ?? value;
+  }
+  if (Array.isArray(value)) {
+    return value.map(v => translateTokenValue(v));
+  }
+  return value;
+}
+
+// Format a value for use inside a container query string
+function formatQueryValue(value) {
+  if (Array.isArray(value)) {
+    return value.join(" ");
+  }
+  return String(value);
+}
+
+// Default breakpoint for desktop_attributes (medium = 1024px+)
+const DEFAULT_BREAKPOINT_PX = 1023;
 
 export function formatAttributes(item) {
   if (item == null) {
@@ -21,12 +42,15 @@ export function formatAttributes(item) {
   const intersection = attributeKeys.filter(key => desktopKeys.includes(key));
   if (intersection.length > 0) {
     for (const key of intersection) {
-      if (typeof attributes[key] === "object" && "conditionals" in attributes[key]) {
-        // We have a case where it can re-render and causes conditionals to keep previous changes. This stop double conditional rendering
+      // Guard against double-conversion
+      if (typeof attributes[key] === "string" && attributes[key].startsWith("@container")) {
         continue;
-      } else {
-        attributes[key] = Style.default(attributes[key]).when({viewportInlineSize: {min: "medium"}}, item.desktop_attributes[key]);
       }
+
+      const mobileValue = translateTokenValue(attributes[key]);
+      const desktopValue = translateTokenValue(item.desktop_attributes[key]);
+
+      attributes[key] = `@container (inline-size > ${DEFAULT_BREAKPOINT_PX}px) ${formatQueryValue(desktopValue)}, ${formatQueryValue(mobileValue)}`;
     }
   }
 

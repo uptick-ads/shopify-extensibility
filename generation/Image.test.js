@@ -2,15 +2,9 @@
  * @jest-environment jsdom
  */
 
-// Have to generate this test different because of error.
-// See https://github.com/Shopify/ui-extensions/issues/712
 import generateImage from "./Image.jsx";
 import {describe, expect, test} from "@jest/globals";
-import { mount } from "@remote-ui/testing";
-import { createRoot } from "@remote-ui/react";
-import { Element } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import { Image } from "@shopify/ui-extensions/checkout";
+import { render } from "@testing-library/preact";
 import merge from "deepmerge";
 
 const base = {
@@ -23,23 +17,17 @@ const base = {
   }
 };
 
-function mountWithRoot(extra = {}) {
-  const generatedComponent = generateImage(merge(base, extra));
-  const root = mount((root) => {
-    return createRoot(root).render(generatedComponent);
-  });
-  const rawComponent = root.find(Image);
-  return new Element(rawComponent, rawComponent.children, root);
+function renderComponent(extra = {}) {
+  const { container } = render(generateImage(merge(base, extra)));
+  return container.firstElementChild;
 }
 
 describe("Generates Image Component", () => {
-  test("creates with key and text", () => {
-    const component = mountWithRoot();
-    expect(component.is(Image)).toBeTruthy();
-    expect(component.text()).toBe("");
-    // This isn't working since I had to hack it together
-    // expect(component.tree.key).toBe("image-test-1");
-    expect(component.prop("source")).toBe("arrowDown");
-    expect(Object.keys(component.props).length).toBe(1);
+  test("creates with key and source", () => {
+    const el = renderComponent();
+    expect(el.tagName.toLowerCase()).toBe("s-image");
+    expect(el.textContent).toBe("");
+    // source is renamed to src for image
+    expect(el.getAttribute("src")).toBe("arrowDown");
   });
 });

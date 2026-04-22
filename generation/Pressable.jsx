@@ -1,9 +1,6 @@
-import {
-  Pressable
-} from "@shopify/ui-extensions-react/checkout";
-
 import { isEmpty, isPresent } from "../utilities/present";
 import { formatAttributes } from "../utilities/formatAttributes";
+import { translateAttributes } from "../utilities/translateAttributes";
 import { createDynamicAttributes } from "./Button.jsx";
 
 export default function generatePressable({ defaultKeyName, keyIndex, item, children, options }) {
@@ -27,9 +24,11 @@ export default function generatePressable({ defaultKeyName, keyIndex, item, chil
     attributes = createDynamicAttributes(item, loading, nextOffer);
   }
 
+  attributes = translateAttributes(attributes, "pressable");
+
   return (
-    <Pressable key={`pressable-${keyName}-${keyIndex}`} {...attributes}>
+    <s-clickable key={`pressable-${keyName}-${keyIndex}`} {...attributes}>
       {content}
-    </Pressable>
+    </s-clickable>
   );
 }

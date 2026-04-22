@@ -11,14 +11,14 @@ export default function OfferBadges({ current, start, total }) {
   for (let index = start; index <= total; index++) {
     columns.push("auto");
 
-    offer_badges.push(<s-box key={`badge-view-${index}`} padding={["none", "small"]}>
+    offer_badges.push(<s-box key={`badge-view-${index}`} padding="none small">
       <s-badge key={`badge-${index}`} tone={index == current ? "default" : "subdued"}>{index}</s-badge>
     </s-box>);
   }
   columns.push("fill");
 
   return (
-    <s-grid gridTemplateColumns={columns}>
+    <s-grid gridTemplateColumns={columns.join(" ")}>
       <s-box>
       </s-box>
       {offer_badges}

@@ -1,6 +1,6 @@
 export default function OfferLoading() {
   return (
-    <s-grid gridTemplateColumns={["auto", 40, "fill"]}>
+    <s-grid gridTemplateColumns="auto 40 fill">
       <s-box>
         <s-box paddingBlock="base"></s-box>
         <s-spinner size="large"></s-spinner>

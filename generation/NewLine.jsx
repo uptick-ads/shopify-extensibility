@@ -8,6 +8,6 @@ export default function generateNewLine({ defaultKeyName, keyIndex, item }) {
   const spacing = translateSpacing(attrs.spacing ?? attrs.gap ?? "base");
 
   return (
-    <s-box key={`newline-${keyName}-${keyIndex}`} paddingBlock={spacing}></s-box>
+    <s-box key={`newline-${keyName}-${keyIndex}`} paddingBlock={spacing} />
   );
 }

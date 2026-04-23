@@ -6,6 +6,6 @@ export default function generateIcon({ defaultKeyName, keyIndex, item, _children
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
 
   return (
-    <s-icon key={`icon-${keyName}-${keyIndex}`} {...translateAttributes(formatAttributes(item), "icon")}></s-icon>
+    <s-icon key={`icon-${keyName}-${keyIndex}`} {...translateAttributes(formatAttributes(item), "icon")} />
   );
 }

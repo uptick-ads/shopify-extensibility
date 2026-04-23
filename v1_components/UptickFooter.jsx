@@ -8,8 +8,7 @@ export default function UptickFooter({ footer }) {
 
   return (
     <s-grid gridTemplateColumns="fill auto" padding="base none none none">
-      <s-box>
-      </s-box>
+      <s-box />
       <s-box>
         {Generator({ defaultKeyName: "footer", items: footer })}
       </s-box>

@@ -8,6 +8,6 @@ export default function generateSpacer({ defaultKeyName, keyIndex, item }) {
   const spacing = translateSpacing(attrs.spacing ?? attrs.gap ?? "base");
 
   return (
-    <s-box key={`spacer-${keyName}-${keyIndex}`} paddingInline={spacing}></s-box>
+    <s-box key={`spacer-${keyName}-${keyIndex}`} paddingInline={spacing} />
   );
 }

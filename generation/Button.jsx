@@ -8,14 +8,14 @@ export function createDynamicAttributes(item, loading, nextOffer) {
   if (isEmpty(item.url)) {
     let hrefButton = {
       disabled: loading,
-      loading: loading
+      loading
     };
     return { ...item.attributes, ...hrefButton };
   }
 
   let clickButton = {
     disabled: loading,
-    loading: loading,
+    loading,
     onClick: () => nextOffer(item.url)
   };
   return { ...item.attributes, ...clickButton };

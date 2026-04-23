@@ -26,7 +26,7 @@ export default function OfferImageWrapper({ image_url, children }) {
         <s-box
           maxBlockSize={MAX_BLOCK_SIZE}
           maxInlineSize={MAX_INLINE_SIZE}>
-          <s-image src={image_url}></s-image>
+          <s-image src={image_url} />
         </s-box>
       </s-box>
       <s-box>
@@ -40,7 +40,7 @@ export default function OfferImageWrapper({ image_url, children }) {
         <s-box
           maxBlockSize={MAX_BLOCK_SIZE}
           maxInlineSize={MAX_INLINE_SIZE}>
-          <s-image src={image_url}></s-image>
+          <s-image src={image_url} />
         </s-box>
       </s-box>
     </s-grid>

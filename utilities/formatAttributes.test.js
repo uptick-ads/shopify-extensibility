@@ -28,8 +28,8 @@ describe("formatAttributes", () => {
   test("skips existing container query strings to handle re-rendering", () => {
     let something = "@container (inline-size > 1023px) xsyd, asdf";
 
-    expect(formatAttributes({ attributes: { something: something, sweet: "yes" }, desktop_attributes: { something: "xsyd", other: "aaaa"  }})).toStrictEqual({
-      "something": something,
+    expect(formatAttributes({ attributes: { something, sweet: "yes" }, desktop_attributes: { something: "xsyd", other: "aaaa"  }})).toStrictEqual({
+      something,
       "sweet": "yes",
     });
   });

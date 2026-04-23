@@ -75,10 +75,10 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
   }
 
   const api = new Api({
-    integrationId: integrationId,
+    integrationId,
     captureException: jest.fn((x) => x),
     captureWarning: jest.fn((x) => x),
-    options: options
+    options
   });
   api.setup({
     shopApi: includeShopApi ? shopApi : {

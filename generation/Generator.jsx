@@ -53,13 +53,13 @@ export default function generate({
       children = generate({
         defaultKeyName: defaultChildrenKeyName,
         items: item.children,
-        options: options,
+        options,
         level: level + 1,
         parentIndex: keyIndex,
         parentType: item.type,
-        logInfo: logInfo,
-        logWarn: logWarn,
-        allowEmpty: allowEmpty
+        logInfo,
+        logWarn,
+        allowEmpty
       });
     }
 
@@ -73,33 +73,33 @@ export default function generate({
     }
 
     if (item.type === "badge") {
-      element = generateBadge({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["badge"] || {}) });
+      element = generateBadge({ defaultKeyName, keyIndex, item, children, options: (options["badge"] || {}) });
     } else if (item.type === "block_layout") {
-      element = generateBlockLayout({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["block_layout"] || {}) });
+      element = generateBlockLayout({ defaultKeyName, keyIndex, item, children, options: (options["block_layout"] || {}) });
     } else if (item.type === "button") {
-      element = generateButton({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["button"] || {}) });
+      element = generateButton({ defaultKeyName, keyIndex, item, children, options: (options["button"] || {}) });
     } else if (item.type === "grid") {
-      element = generateGrid({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["grid"] || {}) });
+      element = generateGrid({ defaultKeyName, keyIndex, item, children, options: (options["grid"] || {}) });
     } else if (item.type === "heading") {
-      element = generateHeading({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["heading"] || {}) });
+      element = generateHeading({ defaultKeyName, keyIndex, item, children, options: (options["heading"] || {}) });
     } else if (item.type === "icon") {
-      element = generateIcon({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["icon"] || {}) });
+      element = generateIcon({ defaultKeyName, keyIndex, item, children, options: (options["icon"] || {}) });
     } else if (item.type === "image") {
-      element = generateImage({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["image"] || {}) });
+      element = generateImage({ defaultKeyName, keyIndex, item, children, options: (options["image"] || {}) });
     } else if (item.type === "inline_layout") {
-      element = generateInlineLayout({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["inline_layout"] || {}) });
+      element = generateInlineLayout({ defaultKeyName, keyIndex, item, children, options: (options["inline_layout"] || {}) });
     } else if (item.type === "link") {
-      element = generateLink({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["link"] || {}) });
+      element = generateLink({ defaultKeyName, keyIndex, item, children, options: (options["link"] || {}) });
     } else if (item.type === "newline") {
-      element = generateNewLine({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["newline"] || {}) });
+      element = generateNewLine({ defaultKeyName, keyIndex, item, children, options: (options["newline"] || {}) });
     } else if (item.type === "pressable") {
-      element = generatePressable({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["pressable"] || {}) });
+      element = generatePressable({ defaultKeyName, keyIndex, item, children, options: (options["pressable"] || {}) });
     } else if (item.type === "spacer") {
-      element = generateSpacer({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["spacer"] || {}) });
+      element = generateSpacer({ defaultKeyName, keyIndex, item, children, options: (options["spacer"] || {}) });
     } else if (item.type === "text") {
-      element = generateText({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["text"] || {}), parentType: parentType });
+      element = generateText({ defaultKeyName, keyIndex, item, children, options: (options["text"] || {}), parentType });
     } else if (item.type === "view" || item.type === "modal") { // we don't support modals, default to a view
-      element = generateView({ defaultKeyName: defaultKeyName, keyIndex: keyIndex, item: item, children: children, options: (options["view"] || {}) });
+      element = generateView({ defaultKeyName, keyIndex, item, children, options: (options["view"] || {}) });
     } else {
       logWarn && console.warn(`Unknown item type of '${item.type}' at index ${keyIndex} for defaultKeyName: ${defaultKeyName} at level ${level}`);
     }

@@ -52,7 +52,7 @@ export default class Api {
     }
 
     if (["order_status", "order_confirmation"].includes(placement) === false) {
-      this.captureException(new Error("Placement must be order_status or order_confirmation"), { extra: { placement: placement } });
+      this.captureException(new Error("Placement must be order_status or order_confirmation"), { extra: { placement } });
       return false;
     }
 
@@ -135,7 +135,7 @@ export default class Api {
       method = "GET"; // New offers are fetched with GET
     }
 
-    return await this.getOfferBase(nextOfferURL, { method: method, setLoader: this.setLoading });
+    return await this.getOfferBase(nextOfferURL, { method, setLoader: this.setLoading });
   }
 
   async getOfferBase(offerURL, { method, setLoader }) {
@@ -260,7 +260,7 @@ export default class Api {
         url.searchParams.set(query_param_key, value);
       }
     } catch (error) {
-      this.captureException(error, { extra: { message: "Unable to set shop api key", query_param_key: query_param_key, value: value } });
+      this.captureException(error, { extra: { message: "Unable to set shop api key", query_param_key, value } });
     }
   }
 
@@ -286,7 +286,7 @@ export default class Api {
 
       return rawResult.body;
     } catch (error) {
-      this.captureException(error, { extra: { url: url, method: method, parseJson: parseJson } });
+      this.captureException(error, { extra: { url, method, parseJson } });
       return null;
     } finally {
       setLoader(false);

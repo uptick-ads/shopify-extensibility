@@ -19,11 +19,9 @@ export default function OfferBadges({ current, start, total }) {
 
   return (
     <s-grid gridTemplateColumns={columns.join(" ")}>
-      <s-box>
-      </s-box>
+      <s-box />
       {offer_badges}
-      <s-box>
-      </s-box>
+      <s-box />
     </s-grid>
   );
 }

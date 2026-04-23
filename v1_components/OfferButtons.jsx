@@ -61,16 +61,16 @@ export default function OfferButtons({ actions, loading, nextOffer }) {
           items: updatedActions,
           options: {
             button: {
-              loading: loading,
-              nextOffer: nextOffer
+              loading,
+              nextOffer
             },
             pressable: {
-              loading: loading,
-              nextOffer: nextOffer
+              loading,
+              nextOffer
             },
             link: {
-              loading: loading,
-              nextOffer: nextOffer
+              loading,
+              nextOffer
             }
           }
         })

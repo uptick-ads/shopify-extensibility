@@ -129,7 +129,7 @@ const eachItem = [
 ];
 
 function renderGenerated(items, options) {
-  const generatedComponents = generate({ defaultKeyName: "test", items: items, level: 1, options: options });
+  const generatedComponents = generate({ defaultKeyName: "test", items, level: 1, options });
   const { container } = render(generatedComponents);
   return container;
 }

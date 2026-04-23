@@ -6,6 +6,6 @@ export default function generateImage({ defaultKeyName, keyIndex, item, _childre
   const keyName = isEmpty(item.name) ? defaultKeyName : item.name;
 
   return (
-    <s-image key={`image-${keyName}-${keyIndex}`} {...translateAttributes(formatAttributes(item), "image")}></s-image>
+    <s-image key={`image-${keyName}-${keyIndex}`} {...translateAttributes(formatAttributes(item), "image")} />
   );
 }

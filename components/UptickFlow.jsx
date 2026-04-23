@@ -97,16 +97,16 @@ export default function UptickOffer({ offer, loading, nextOffer, rejected, rejec
             items: offer?.children,
             options: {
               button: {
-                loading: loading,
-                nextOffer: nextOffer
+                loading,
+                nextOffer
               },
               pressable: {
-                loading: loading,
-                nextOffer: nextOffer
+                loading,
+                nextOffer
               },
               link: {
-                loading: loading,
-                nextOffer: nextOffer
+                loading,
+                nextOffer
               }
             },
             allowEmpty: true
@@ -130,25 +130,25 @@ export default function UptickOffer({ offer, loading, nextOffer, rejected, rejec
       />
       <s-box border="base" padding="base">
         {Generator({ defaultKeyName: "personalization", items: offer?.attributes?.personalization })}
-        { hasPersonalization && hasOffer && <s-box paddingBlock="large"></s-box> }
+        { hasPersonalization && hasOffer && <s-box paddingBlock="large" /> }
         <OfferBadges
           current={offer?.attributes?.offers?.current}
           start={offer?.attributes?.offers?.start}
           total={offer?.attributes?.offers?.size}
         />
-        { hasDescriptionOrImage && (hasOffer || hasPersonalization) && <s-box paddingBlock="large"></s-box> }
+        { hasDescriptionOrImage && (hasOffer || hasPersonalization) && <s-box paddingBlock="large" /> }
         <OfferImageWrapper image_url={offer?.attributes?.image?.url} >
           {Generator({ defaultKeyName: "sponsored", items: offer?.attributes?.sponsored })}
-          { offer?.attributes?.sponsored && <s-box paddingBlock="small-200"></s-box> }
+          { offer?.attributes?.sponsored && <s-box paddingBlock="small-200" /> }
           {Generator({ defaultKeyName: "content", items: offer?.attributes?.content })}
         </OfferImageWrapper>
-        <s-box paddingBlock="large"></s-box>
+        <s-box paddingBlock="large" />
         <OfferButtons
           actions={offer?.attributes?.actions}
           loading={loading}
           nextOffer={nextOffer}
         />
-        { (offer?.attributes?.disclaimer || []).length > 0 && <s-box paddingBlock="small-200"></s-box> }
+        { (offer?.attributes?.disclaimer || []).length > 0 && <s-box paddingBlock="small-200" /> }
         {Generator({ defaultKeyName: "disclaimer", items: offer?.attributes?.disclaimer })}
         <UptickFooter
           footer={offer.attributes.footer}

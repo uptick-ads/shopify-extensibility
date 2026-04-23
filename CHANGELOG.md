@@ -1,6 +1,11 @@
 # Changelog
 
 
+## [2026.4.23+1] - 2026-04-23
+
+### 🚀 Added
+- Editor check for theme editor
+
 ## [2026.4.13+1] - 2026-04-13
 
 ### Chore

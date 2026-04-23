@@ -54,9 +54,13 @@ function renderComponent(data, extra = {}) {
 
 describe("Generates Pressable Component with no to or url", () => {
   test("creates with key and text", () => {
+    const vnode = generatePressable(merge(plainPressable, {}));
+    expect(vnode.key).toBe("pressable-test-1");
+
     const el = renderComponent(plainPressable);
     expect(el.tagName.toLowerCase()).toBe("s-clickable");
     expect(el.textContent).toBe("Plain");
+    expect(el.attributes.length).toBe(0);
   });
 
   test("creates with custom property", () => {
@@ -83,11 +87,15 @@ describe("Generates Pressable Component with no to or url", () => {
 
 describe("Generates Pressable Component with to attribute", () => {
   test("creates with key and text", () => {
+    const vnode = generatePressable(merge(toAttributePressable, {}));
+    expect(vnode.key).toBe("pressable-test-1");
+
     const el = renderComponent(toAttributePressable);
     expect(el.tagName.toLowerCase()).toBe("s-clickable");
     expect(el.textContent).toBe("To Attribute");
     // to → href after translation
     expect(el.getAttribute("href")).toBe("https://google.com");
+    expect(el.attributes.length).toBe(1);
   });
 
   test("creates with custom property", () => {
@@ -115,11 +123,15 @@ describe("Generates Pressable Component with to attribute", () => {
 
 describe("Generates Pressable Component with url property", () => {
   test("creates with key and text", () => {
+    const vnode = generatePressable(merge(urlPropertyPressable, {}));
+    expect(vnode.key).toBe("pressable-test-1");
+
     const el = renderComponent(urlPropertyPressable);
     expect(el.tagName.toLowerCase()).toBe("s-clickable");
     expect(el.textContent).toBe("Url Property");
     // url pressables get onClick handler, no href attribute
     expect(el.getAttribute("href")).toBeNull();
+    expect(el.attributes.length).toBe(0);
   });
 
   test("creates with custom property", () => {

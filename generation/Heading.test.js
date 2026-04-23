@@ -25,14 +25,21 @@ function renderComponent(extra = {}) {
 
 describe("Generates Heading Component", () => {
   test("creates with key and text", () => {
+    const vnode = generateHeading(merge(base, {}));
+    expect(vnode.key).toBe("heading-test-1");
+
     const el = renderComponent();
     expect(el.tagName.toLowerCase()).toBe("s-heading");
     expect(el.textContent).toBe("Custom");
     // size is stripped for heading in 2026-01
     expect(el.getAttribute("size")).toBeNull();
+    expect(el.attributes.length).toBe(0);
   });
 
   test("creates with children if text is blank", () => {
+    const vnode = generateHeading(merge(base, { item: { text: "" }, children: "Children" }));
+    expect(vnode.key).toBe("heading-test-1");
+
     const el = renderComponent({
       item: {
         text: ""
@@ -40,5 +47,6 @@ describe("Generates Heading Component", () => {
       children: "Children"
     });
     expect(el.textContent).toBe("Children");
+    expect(el.attributes.length).toBe(0);
   });
 });

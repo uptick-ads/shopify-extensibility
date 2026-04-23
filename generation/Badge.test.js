@@ -25,13 +25,20 @@ function renderComponent(extra = {}) {
 
 describe("Generates Badge Component", () => {
   test("creates with key and text", () => {
+    const vnode = generateBadge(merge(base, {}));
+    expect(vnode.key).toBe("badge-test-1");
+
     const el = renderComponent();
     expect(el.tagName.toLowerCase()).toBe("s-badge");
     expect(el.textContent).toBe("11");
     expect(el.getAttribute("size")).toBe("small");
+    expect(el.attributes.length).toBe(1);
   });
 
   test("creates with children if text is blank", () => {
+    const vnode = generateBadge(merge(base, { item: { text: "" }, children: "Children" }));
+    expect(vnode.key).toBe("badge-test-1");
+
     const el = renderComponent({
       item: {
         text: ""
@@ -39,5 +46,6 @@ describe("Generates Badge Component", () => {
       children: "Children"
     });
     expect(el.textContent).toBe("Children");
+    expect(el.attributes.length).toBe(1);
   });
 });

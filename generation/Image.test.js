@@ -24,10 +24,14 @@ function renderComponent(extra = {}) {
 
 describe("Generates Image Component", () => {
   test("creates with key and source", () => {
+    const vnode = generateImage(merge(base, {}));
+    expect(vnode.key).toBe("image-test-1");
+
     const el = renderComponent();
     expect(el.tagName.toLowerCase()).toBe("s-image");
     expect(el.textContent).toBe("");
     // source is renamed to src for image
     expect(el.getAttribute("src")).toBe("arrowDown");
+    expect(el.attributes.length).toBe(1);
   });
 });

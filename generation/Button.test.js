@@ -54,9 +54,13 @@ function renderComponent(data, extra = {}) {
 
 describe("Generates Button Component with no to or url", () => {
   test("creates with key and text", () => {
+    const vnode = generateButton(merge(plainButton, {}));
+    expect(vnode.key).toBe("button-test-1");
+
     const el = renderComponent(plainButton);
     expect(el.tagName.toLowerCase()).toBe("s-button");
     expect(el.textContent).toBe("Plain");
+    expect(el.attributes.length).toBe(0);
   });
 
   test("creates component with html spaces", () => {
@@ -89,11 +93,15 @@ describe("Generates Button Component with no to or url", () => {
 
 describe("Generates Button Component with to attribute", () => {
   test("creates with key and text", () => {
+    const vnode = generateButton(merge(toAttributeButton, {}));
+    expect(vnode.key).toBe("button-test-1");
+
     const el = renderComponent(toAttributeButton);
     expect(el.tagName.toLowerCase()).toBe("s-button");
     expect(el.textContent).toBe("To Attribute");
     // to → href after translation
     expect(el.getAttribute("href")).toBe("https://google.com");
+    expect(el.attributes.length).toBe(1);
   });
 
   test("creates with custom property", () => {
@@ -121,11 +129,15 @@ describe("Generates Button Component with to attribute", () => {
 
 describe("Generates Button Component with url property", () => {
   test("creates with key and text", () => {
+    const vnode = generateButton(merge(urlPropertyButton, {}));
+    expect(vnode.key).toBe("button-test-1");
+
     const el = renderComponent(urlPropertyButton);
     expect(el.tagName.toLowerCase()).toBe("s-button");
     expect(el.textContent).toBe("Url Property");
     // url buttons get onClick handler, no href attribute
     expect(el.getAttribute("href")).toBeNull();
+    expect(el.attributes.length).toBe(0);
   });
 
   test("creates with custom property", () => {

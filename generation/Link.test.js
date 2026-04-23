@@ -55,11 +55,15 @@ function renderComponent(data, extra = {}) {
 
 describe("Generates Link Component", () => {
   test("creates with key and text", () => {
+    const vnode = generateLink(merge(plainLink, {}));
+    expect(vnode.key).toBe("link-test-1");
+
     const el = renderComponent(plainLink);
     expect(el.tagName.toLowerCase()).toBe("s-link");
     expect(el.textContent).toBe("Plain");
     // to → href after translation
     expect(el.getAttribute("href")).toBe("https://google.com");
+    expect(el.attributes.length).toBe(1);
   });
 
   test("creates with custom property", () => {
@@ -87,11 +91,15 @@ describe("Generates Link Component", () => {
 
 describe("Generates Link Component with to attribute and options", () => {
   test("creates with key and text", () => {
+    const vnode = generateLink(merge(toAttributeLink, {}));
+    expect(vnode.key).toBe("link-test-1");
+
     const el = renderComponent(toAttributeLink);
     expect(el.tagName.toLowerCase()).toBe("s-link");
     expect(el.textContent).toBe("To Attribute");
     // to → href after translation
     expect(el.getAttribute("href")).toBe("https://google.com");
+    expect(el.attributes.length).toBe(1);
   });
 
   test("creates with custom property", () => {
@@ -119,11 +127,15 @@ describe("Generates Link Component with to attribute and options", () => {
 
 describe("Generates Link Component with url property and options", () => {
   test("creates with key and text", () => {
+    const vnode = generateLink(merge(urlPropertyLink, {}));
+    expect(vnode.key).toBe("link-test-1");
+
     const el = renderComponent(urlPropertyLink);
     expect(el.tagName.toLowerCase()).toBe("s-link");
     expect(el.textContent).toBe("Url Property");
     // url buttons get onClick handler, no href attribute
     expect(el.getAttribute("href")).toBeNull();
+    expect(el.attributes.length).toBe(0);
   });
 
   test("creates with custom property", () => {

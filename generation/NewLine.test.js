@@ -24,14 +24,21 @@ function renderComponent(extra = {}) {
 
 describe("Generates NewLine Component", () => {
   test("creates with key as s-box", () => {
+    const vnode = generateNewLine(merge(base, {}));
+    expect(vnode.key).toBe("newline-test-1");
+
     const el = renderComponent();
     expect(el.tagName.toLowerCase()).toBe("s-box");
     expect(el.textContent).toBe("");
     // Default spacing is "base"
     expect(el.getAttribute("paddingBlock")).toBe("base");
+    expect(el.attributes.length).toBe(1);
   });
 
   test("creates with translated spacing", () => {
+    const vnode = generateNewLine(merge(base, { item: { attributes: { spacing: "tight" } } }));
+    expect(vnode.key).toBe("newline-test-1");
+
     const el = renderComponent({
       item: {
         attributes: {
@@ -41,5 +48,6 @@ describe("Generates NewLine Component", () => {
     });
     // tight → small after translation
     expect(el.getAttribute("paddingBlock")).toBe("small");
+    expect(el.attributes.length).toBe(1);
   });
 });

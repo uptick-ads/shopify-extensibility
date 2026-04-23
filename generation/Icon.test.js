@@ -24,9 +24,13 @@ function renderComponent(extra = {}) {
 
 describe("Generates Icon Component", () => {
   test("creates with key and source", () => {
+    const vnode = generateIcon(merge(base, {}));
+    expect(vnode.key).toBe("icon-test-1");
+
     const el = renderComponent();
     expect(el.tagName.toLowerCase()).toBe("s-icon");
     expect(el.textContent).toBe("");
     expect(el.getAttribute("source")).toBe("arrowDown");
+    expect(el.attributes.length).toBe(1);
   });
 });

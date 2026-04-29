@@ -65,9 +65,6 @@ export default class Api {
     const url = new URL(this.flowURL);
 
     try {
-      this.addParam(url, "v1", "api_versions[]");
-      url.searchParams.append("api_versions[]", "v2");
-
       this.addParam(url, placement, "placement");
       this.addParam(url, this.shopApi.shop.myshopifyDomain, "shop_myshopify_domain");
 
@@ -276,7 +273,7 @@ export default class Api {
           Accept: "application/json",
           "Content-Type": "application/json",
           "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.0.0"
+          "X-Uptick-Integration-Version": "1.1.0"
         }
       });
 

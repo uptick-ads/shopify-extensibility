@@ -99,8 +99,6 @@ function generateFlowURL(api, placement, integrationID = null) {
   }
 
   const url = new URL(api.flowURL);
-  url.searchParams.set("api_versions[]", "v1");
-  url.searchParams.append("api_versions[]", "v2");
   url.searchParams.set("placement", placement);
   url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
   url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
@@ -937,7 +935,7 @@ describe("api", () => {
           Accept: "application/json",
           "Content-Type": "application/json",
           "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.0.0"
+          "X-Uptick-Integration-Version": "1.1.0"
         }
       });
 
@@ -973,7 +971,7 @@ describe("api", () => {
           Accept: "application/json",
           "Content-Type": "application/json",
           "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.0.0"
+          "X-Uptick-Integration-Version": "1.1.0"
         }
       });
 

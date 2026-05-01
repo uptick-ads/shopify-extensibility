@@ -10,12 +10,18 @@ function resolveOptions(options, type, tag) {
   return options[type] || options[tag] || options[unprefixedTag] || {};
 }
 
-function buildProps({ item, key, typeOptions }) {
+const ACTION_TAGS = new Set(["s-button", "s-link", "s-clickable"]);
+
+function buildProps({ item, key, tag, typeOptions }) {
   const { loading, nextOffer, ...componentOptions } = typeOptions;
   const props = { key, ...(item.attributes || {}), ...componentOptions };
 
-  if (item.url != null && nextOffer != null) {
+  if (ACTION_TAGS.has(tag) && loading != null) {
     props.disabled = loading;
+    props.loading = loading;
+  }
+
+  if (item.url != null && nextOffer != null) {
     props.onClick = () => nextOffer(item.url);
   }
 
@@ -70,6 +76,7 @@ export default function generate({
     const element = createElement(tag, buildProps({
       item,
       key: `${item.type}-${keyName}-${keyIndex}`,
+      tag,
       typeOptions
     }), content);
 

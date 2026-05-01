@@ -10,7 +10,7 @@ import {
   beforeEach
 } from "@jest/globals";
 import { render } from "@testing-library/preact";
-import UptickOffer, { addURLtoOffer } from "./UptickFlow.jsx";
+import UptickOffer from "./UptickFlow.jsx";
 
 const sampleData = {
   type: "offer",
@@ -33,9 +33,7 @@ const sampleData = {
                   type: "s-button",
                   text: "Claim your $20",
                   name: "button-accept",
-                  attributes: {
-                    href: "https://app.uptick.com/accept"
-                  }
+                  url: "https://example.com/next_offer"
                 },
                 {
                   type: "s-link",
@@ -58,40 +56,6 @@ const sampleData = {
 function cloneOffer() {
   return JSON.parse(JSON.stringify(sampleData));
 }
-
-describe("addURLtoOffer", () => {
-  let offerData;
-
-  beforeEach(() => {
-    offerData = cloneOffer();
-  });
-
-  test("adds url and external to actions with href property", () => {
-    const updated = addURLtoOffer(offerData);
-    const nextOfferLink = sampleData.links.next_offer;
-    const withHref = updated.children[0].children[0].children[1].children[0];
-    expect(withHref).toBeDefined();
-    expect(withHref.attributes.href).toBeDefined();
-    expect(withHref.url).toBe(nextOfferLink);
-    expect(withHref.attributes.external).toBe(true);
-  });
-
-  test("does nothing for actions without an href property", () => {
-    const updated = addURLtoOffer(offerData);
-    const withoutHref = updated.children[0].children[0].children[1].children[1];
-    expect(withoutHref).toBeDefined();
-    expect(withoutHref.href).toBeUndefined();
-    expect(withoutHref.url).toBeDefined();
-    expect(withoutHref.attributes).toBeUndefined();
-  });
-
-  test("returns offer unchanged when no links.next_offer", () => {
-    delete offerData.links;
-    const updated = addURLtoOffer(offerData);
-    const btn = updated.children[0].children[0].children[1].children[0];
-    expect(btn.url).toBeUndefined();
-  });
-});
 
 describe("UptickOffer", () => {
   test("renders loading state when loading is true and offer is null", () => {
@@ -152,25 +116,6 @@ describe("UptickOffer", () => {
     const texts = container.querySelectorAll("s-text");
     const debugText = Array.from(texts).find(el => el.textContent === "Debug Info");
     expect(debugText).not.toBeNull();
-  });
-
-  test("deprecated rejected param maps to loading", () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-    const { container } = render(<UptickOffer offer={null} rejected={true} />);
-
-    expect(container.querySelector("s-spinner")).not.toBeNull();
-    expect(warnSpy).toHaveBeenCalledWith("The 'rejected' parameter is deprecated. Please use the 'loading' parameter instead.");
-    warnSpy.mockRestore();
-  });
-
-  test("deprecated rejectOffer param maps to nextOffer", () => {
-    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
-    const rejectFn = jest.fn();
-    const offer = cloneOffer();
-    render(<UptickOffer offer={offer} loading={false} rejectOffer={rejectFn} />);
-
-    expect(warnSpy).toHaveBeenCalledWith("rejectOffer is deprecated, please use nextOffer parameter instead.");
-    warnSpy.mockRestore();
   });
 
   test("renders nothing when offer is null with no loading param", () => {

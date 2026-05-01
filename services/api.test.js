@@ -6,7 +6,6 @@ import {
   afterAll
 } from "@jest/globals";
 import Api from "./api";
-import merge from "deepmerge";
 import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
@@ -623,35 +622,9 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
 
-    test("if v1 data offer has no attributes returns", async () => {
+    test("if offer has no children returns", async () => {
       const api = createApi();
       const returnResult = {
-        api_version: "v1",
-        data: [{
-          type: "offer"
-        }]
-      };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
-      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
-
-      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toBe(false);
-
-      expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
-
-      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
-
-      expect(api.setLoading).toHaveBeenCalledTimes(0);
-      expect(api.captureException).toHaveBeenCalledTimes(0);
-      expect(api.captureWarning).toHaveBeenCalledTimes(1);
-      expect(api.captureWarning).toHaveBeenCalledWith("Offer contained no data.");
-    });
-
-    test("if v2 data offer has no children returns", async () => {
-      const api = createApi();
-      const returnResult = {
-        api_version: "v2",
         data: [{
           type: "offer"
         }]
@@ -682,10 +655,9 @@ describe("api", () => {
         next_offer_url: nextOfferUrl
       };
       const offerResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: { something: true }
+          children: [{ something: true }]
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
@@ -698,8 +670,7 @@ describe("api", () => {
       const result = await api.getOfferBase(rejectUrlBase, { method: "POST", setLoader: api.setLoading });
 
       expect(result.type).toBe("offer");
-      expect(result.api_version).toBe("v1");
-      expect(result.attributes.something).toBe(true);
+      expect(result.children[0].something).toBe(true);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(2);
 
@@ -721,19 +692,21 @@ describe("api", () => {
     test("if v1 data is type offer sets correctly", async () => {
       const api = createApi();
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: {
+          children: [{
             something: true
-          }
-        }]
+          }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+      expect(result.type).toBe("offer");
+      expect(result.children).toStrictEqual([{ something: true }]);
+      expect(result.links).toStrictEqual(returnResult.links);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
       expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
@@ -748,19 +721,21 @@ describe("api", () => {
     test("if v2 data is type offer sets correctly", async () => {
       const api = createApi();
       const returnResult = {
-        api_version: "v2",
         data: [{
           type: "offer",
           children: [{
             something: true
           }]
-        }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v2" }));
+      expect(result.type).toBe("offer");
+      expect(result.children).toStrictEqual([{ something: true }]);
+      expect(result.links).toStrictEqual(returnResult.links);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
       expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
@@ -777,18 +752,16 @@ describe("api", () => {
       delete api.shopApi.buyerIdentity;
 
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: { something: true }
+          children: [{ something: true }]
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
-      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+      await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
 
       const calledUrl = new URL(api.fetchResult.mock.calls[0][0]);
       expect(calledUrl.searchParams.has("customer_id")).toBe(false);
@@ -802,18 +775,16 @@ describe("api", () => {
       const api = createApi();
 
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: { something: true }
+          children: [{ something: true }]
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
-      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+      await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
 
       const calledUrl = new URL(api.fetchResult.mock.calls[0][0]);
       expect(calledUrl.searchParams.get("customer_id")).toBe("gid://shopify/Customer/8610705670358");
@@ -994,13 +965,11 @@ describe("api", () => {
 
       const api = createApi(true, { options });
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: {
-            something: true
-          }
-        }]
+          children: [{ something: true }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
 
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
@@ -1033,13 +1002,11 @@ describe("api", () => {
 
       const api = createApi(true, { options });
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: {
-            something: true
-          }
-        }]
+          children: [{ something: true }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
 
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);

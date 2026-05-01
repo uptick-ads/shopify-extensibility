@@ -198,14 +198,11 @@ export default class Api {
       return false;
     }
 
-    // V1 uses attributes, V2 uses children
-    if (offerData.attributes == null && offerData.children == null) {
+    if (offerData.children == null) {
       this.captureWarning("Offer contained no data.");
       return false;
     }
 
-    // bring api version down
-    offerData.api_version = offerResult.api_version;
     offerData.links = offerResult.links;
     // Send without blocking
     this.offerViewedEvent(offerResult);

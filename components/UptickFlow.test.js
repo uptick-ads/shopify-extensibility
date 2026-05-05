@@ -6,8 +6,7 @@ import {
   describe,
   expect,
   test,
-  jest,
-  beforeEach
+  jest
 } from "@jest/globals";
 import { render } from "@testing-library/preact";
 import UptickOffer from "./UptickFlow.jsx";

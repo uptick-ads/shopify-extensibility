@@ -4,15 +4,22 @@ export default function UptickOffer({ offer, loading, nextOffer, children }) {
   // If we're loading an offer and haven't had one previously, render loading state
   if (loading === true && offer == null) {
     return (
-      <s-grid gridTemplateColumns="auto 40 fill">
-        <s-box>
-          <s-box paddingBlock="base" />
+      <s-grid
+        gridTemplateColumns="100px auto"
+        placeItems="center"
+        columnGap="large"
+        padding="large"
+        border="base"
+        borderRadius="base"
+      >
+        <s-grid-item>
           <s-spinner size="large" />
-        </s-box>
-        <s-box />
-        <s-box>
-          <s-skeleton-paragraph lines="3" />
-        </s-box>
+        </s-grid-item>
+        <s-grid-item inlineSize="100%">
+          <s-skeleton-paragraph/>
+          <s-skeleton-paragraph/>
+          <s-skeleton-paragraph/>
+        </s-grid-item>
       </s-grid>
     );
   }
@@ -26,22 +33,8 @@ export default function UptickOffer({ offer, loading, nextOffer, children }) {
     <>
       {
         Generator({
-          defaultKeyName: "default",
           items: offer?.children,
-          options: {
-            button: {
-              loading,
-              nextOffer
-            },
-            clickable: {
-              loading,
-              nextOffer
-            },
-            link: {
-              loading,
-              nextOffer
-            }
-          }
+          options: { loading, nextOffer }
         })
       }
       {children}

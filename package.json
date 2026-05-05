@@ -17,9 +17,9 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-env": "^7.26.x",
     "@babel/preset-react": "^7.26.3",
-    "@shopify/ui-extensions": "2026.1.x",
+    "@shopify/ui-extensions": "2026.4.x",
     "@testing-library/preact": "^3.2.0",
     "@testing-library/jest-dom": "^6.6.0",
     "deepmerge": "^4.3.1",

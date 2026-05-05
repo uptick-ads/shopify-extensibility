@@ -9,14 +9,13 @@ import { isPresent } from "../utilities/present.js";
 
 const badgeItem = { type: "s-badge", attributes: {}, text: "12" };
 const boxItem = { type: "s-box", attributes: {}, text: "Box Text" };
-const buttonItem = { type: "s-button", attributes: { href: "https://www.google.com" }, text: "Clickme" };
-const buttonOptions = { loading: false, nextOffer: () => null };
+const buttonItem = { type: "s-button", attributes: { href: "https://www.google.com" }, url: "https://www.google.com", text: "Clickme" };
 const clickableItem = { type: "s-clickable", attributes: {}, text: "Clickable Text" };
 const gridItem = { type: "s-grid", attributes: {}, text: "Grid Text" };
 const headingItem = { type: "s-heading", attributes: {}, text: "Title!" };
 const iconItem = { type: "s-icon", attributes: { source: "arrowDown" } };
 const imageItem = { type: "s-image", attributes: { src: "https://www.image.com/something.jpg" } };
-const linkItem = { type: "s-link", attributes: { href: "https://www.google.com" }, text: "Goto" };
+const linkItem = { type: "s-link", attributes: { href: "https://www.google.com" }, url: "https://www.google.com", text: "Goto" };
 const paragraphItem = { type: "s-paragraph", attributes: {}, text: "Paragraph Text" };
 const spacerItem = { type: "s-spacer", attributes: {} };
 const textItem = { type: "s-text", attributes: {}, text: "Custom" };
@@ -24,20 +23,20 @@ const textItem = { type: "s-text", attributes: {}, text: "Custom" };
 const eachItem = [
   { item: badgeItem, tagName: "s-badge" },
   { item: boxItem, tagName: "s-box" },
-  { item: buttonItem, tagName: "s-button", options: { "s-button": buttonOptions } },
+  { item: buttonItem, tagName: "s-button", options: { loading: false, nextOffer: () => null } },
   { item: clickableItem, tagName: "s-clickable" },
   { item: gridItem, tagName: "s-grid" },
   { item: headingItem, tagName: "s-heading" },
   { item: iconItem, tagName: "s-icon" },
   { item: imageItem, tagName: "s-image" },
-  { item: linkItem, tagName: "s-link" },
+  { item: linkItem, tagName: "s-link", options: { loading: false, nextOffer: () => null } },
   { item: paragraphItem, tagName: "s-paragraph" },
   { item: spacerItem, tagName: "s-spacer" },
   { item: textItem, tagName: "s-text" },
 ];
 
 function renderGenerated(items, options) {
-  const generatedComponents = generate({ defaultKeyName: "test", items, level: 1, options });
+  const generatedComponents = generate({ items, level: 1, options });
   const { container } = render(generatedComponents);
   return container;
 }
@@ -63,11 +62,7 @@ describe("Generator", () => {
   });
 
   test("when items is empty returns false", () => {
-    expect(generate({ defaultKeyName: "test", items: [] })).toBe(false);
-  });
-
-  test("when defaultKeyName is empty returns false", () => {
-    expect(generate({ defaultKeyName: "", items: [textItem], logWarn: false })).toBe(false);
+    expect(generate({ items: [] })).toBe(false);
   });
 
   test("when type has no s- prefix it gets prepended", () => {
@@ -145,33 +140,6 @@ describe("Generator", () => {
     expect(container.querySelector("s-link s-text").textContent).toBe("No, thanks");
   });
 
-  test("assigns unique keys using name when present", () => {
-    const items = [
-      { type: "s-box", name: "header", children: [{ type: "s-text", text: "Hi" }] },
-      { type: "s-box", name: "footer", children: [{ type: "s-text", text: "Bye" }] },
-    ];
-    const result = generate({ defaultKeyName: "test", items, logWarn: false });
-    expect(result.props.children[0].key).toContain("header");
-    expect(result.props.children[1].key).toContain("footer");
-  });
-
-  test("assigns key using defaultKeyName when name is absent", () => {
-    const items = [{ type: "s-text", text: "Hello" }];
-    const result = generate({ defaultKeyName: "mykey", items, logWarn: false });
-    const vnode = result.props.children[0];
-    expect(vnode.key).toBe("s-text-mykey-10");
-  });
-
-  test("key format includes type, name, and index", () => {
-    const items = [
-      { type: "s-box", name: "first", text: "A" },
-      { type: "s-text", name: "second", text: "B" },
-    ];
-    const result = generate({ defaultKeyName: "test", items, logWarn: false });
-    expect(result.props.children[0].key).toBe("s-box-first-10");
-    expect(result.props.children[1].key).toBe("s-text-second-11");
-  });
-
   test("renders correct number of attributes on element", () => {
     const container = renderGenerated([{
       type: "s-button",
@@ -192,9 +160,7 @@ describe("Generator", () => {
       name: "button-reject",
       url: "https://example.com/reject",
       children: [{ type: "s-paragraph", text: "No, thanks" }],
-    }], {
-      link: { loading: false, nextOffer }
-    });
+    }], { loading: false, nextOffer });
     const link = container.querySelector("s-link");
     link.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(nextOffer).toHaveBeenCalledWith("https://example.com/reject");
@@ -206,9 +172,7 @@ describe("Generator", () => {
       type: "s-button",
       text: "Reject",
       url: "https://example.com/reject",
-    }], {
-      button: { loading: false, nextOffer }
-    });
+    }], { loading: false, nextOffer });
     const button = container.querySelector("s-button");
     button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
     expect(nextOffer).toHaveBeenCalledWith("https://example.com/reject");
@@ -220,9 +184,7 @@ describe("Generator", () => {
       text: "Reject",
       url: "https://example.com/reject",
       attributes: { variant: "secondary" },
-    }], {
-      button: { loading: false, nextOffer: jest.fn() }
-    });
+    }], { loading: false, nextOffer: jest.fn() });
     const button = container.querySelector("s-button");
     expect(button.getAttribute("variant")).toBe("secondary");
     expect(button.hasAttribute("nextOffer")).toBe(false);
@@ -247,6 +209,28 @@ describe("Generator", () => {
   });
 
   test("returns false for null items", () => {
-    expect(generate({ defaultKeyName: "test", items: null, logWarn: false })).toBe(false);
+    expect(generate({ items: null, logWarn: false })).toBe(false);
+  });
+
+  test("skips items with null type", () => {
+    expect(generate({ items: [{ type: null, text: "Hi" }], logWarn: false })).toBe(false);
+  });
+
+  test("skips items with undefined type", () => {
+    expect(generate({ items: [{ text: "Hi" }], logWarn: false })).toBe(false);
+  });
+
+  test("skips items with empty string type", () => {
+    expect(generate({ items: [{ type: "", text: "Hi" }], logWarn: false })).toBe(false);
+  });
+
+  test("skips invalid type items but renders valid ones", () => {
+    const container = renderGenerated([
+      { type: null, text: "Bad" },
+      { type: "s-text", text: "Good" },
+    ]);
+    const el = container.querySelector("s-text");
+    expect(el).not.toBeNull();
+    expect(el.textContent).toBe("Good");
   });
 });

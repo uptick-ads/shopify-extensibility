@@ -24,6 +24,7 @@ const config = {
   collectCoverageFrom: [
     "**/*.{js,jsx}",
     "!**/node_modules/**",
+    "!**/coverage/**",
     "!**/jest.config.cjs",
     "!**/jest.setup.cjs",
     "!**/babel.config.cjs",

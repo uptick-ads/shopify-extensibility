@@ -1,5 +1,7 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
 
+const MAX_REDIRECTS = 3;
+
 export default class Api {
   constructor({
     integrationId = null,
@@ -73,6 +75,7 @@ export default class Api {
 
       // Pass editor context if present (theme/checkout editor preview)
       if (this.shopApi?.extension?.editor) {
+        // await new Promise(resolve => setTimeout(resolve, 100000));
         url.searchParams.set("editor", "1");
       }
 
@@ -89,7 +92,13 @@ export default class Api {
 
       // Handle no_redirect response — follow flow_url if present
       if (isPresent(this.flow?.flow_url)) {
-        this.flow = await this.fetchResult(this.flow.flow_url, { setLoader: this.noop });
+        const flowUrl = this.flow.flow_url;
+        this.flow = await this.fetchResult(flowUrl, { setLoader: this.noop });
+
+        if (isPresent(this.flow?.flow_url)) {
+          this.captureException(new Error("Unexpected second flow_url redirect."), { extra: { flow_url: this.flow.flow_url } });
+          return false;
+        }
       }
 
       if (this.flow == null) {
@@ -135,7 +144,12 @@ export default class Api {
     return await this.getOfferBase(nextOfferURL, { method, setLoader: this.setLoading });
   }
 
-  async getOfferBase(offerURL, { method, setLoader }) {
+  async getOfferBase(offerURL, { method, setLoader, _redirectCount = 0 } = {}) {
+    if (_redirectCount >= MAX_REDIRECTS) {
+      this.captureException(new Error("Maximum offer redirects exceeded."), { extra: { offerURL, _redirectCount } });
+      return false;
+    }
+
     const url = new URL(offerURL);
 
     try {
@@ -179,7 +193,7 @@ export default class Api {
 
     // Handle no_redirect response — follow next_offer_url if present
     if (isPresent(offerResult?.next_offer_url)) {
-      return await this.getOfferBase(offerResult.next_offer_url, { setLoader });
+      return await this.getOfferBase(offerResult.next_offer_url, { setLoader, _redirectCount: _redirectCount + 1 });
     }
 
     if (offerResult == null) {
@@ -205,7 +219,9 @@ export default class Api {
 
     offerData.links = offerResult.links;
     // Send without blocking
-    this.offerViewedEvent(offerResult);
+    Promise.resolve(this.offerViewedEvent(offerResult)).catch((error) => {
+      this.captureException(error, { extra: { message: "Unhandled error in offerViewedEvent" } });
+    });
     return offerData;
   }
 
@@ -222,12 +238,12 @@ export default class Api {
       this.addParam(url, this.getTimeStamp(), "ts"); // Current Timestamp
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl"); // Location
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl"); // Referrer
-      if (navigator != null) { // Window doesn't exist
+      if (navigator != null) {
         this.addParam(url, navigator?.language, "de"); // Navigator Language
         this.addParam(url, navigator?.userAgent, "ua"); // User Agent string
       }
 
-      return this.fetchResult(url.toString(), { method: "POST", setLoader: this.noop, parseJson: false });
+      return await this.fetchResult(url.toString(), { method: "POST", setLoader: this.noop, parseJson: false });
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to send offer viewed event" } });
     }

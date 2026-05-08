@@ -33,7 +33,7 @@ export default function generate({
 
   if (items == null || items.length === 0) {
     logInfo && console.info(`No items to generate at level ${level}`);
-    return false;
+    return null;
   }
 
   const elements = [];
@@ -68,7 +68,7 @@ export default function generate({
 
   if (elements == null || elements.length === 0) {
     logWarn && console.warn(`Nothing was generated at level ${level}`);
-    return false;
+    return null;
   }
 
   return (

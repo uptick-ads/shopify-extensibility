@@ -26,7 +26,7 @@ export default function UptickOffer({ offer, loading, nextOffer, children }) {
 
   // If we aren't loading and offer is null or false, don't render anything
   if (offer == null || offer === false) {
-    return <></>;
+    return null;
   }
 
   return (

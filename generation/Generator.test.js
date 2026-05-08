@@ -61,8 +61,8 @@ describe("Generator", () => {
     });
   });
 
-  test("when items is empty returns false", () => {
-    expect(generate({ items: [] })).toBe(false);
+  test("when items is empty returns null", () => {
+    expect(generate({ items: [] })).toBeNull();
   });
 
   test("when type has no s- prefix it gets prepended", () => {
@@ -208,20 +208,20 @@ describe("Generator", () => {
     expect(box.getAttribute("border")).toBe("dashed");
   });
 
-  test("returns false for null items", () => {
-    expect(generate({ items: null, logWarn: false })).toBe(false);
+  test("returns null for null items", () => {
+    expect(generate({ items: null, logWarn: false })).toBeNull();
   });
 
   test("skips items with null type", () => {
-    expect(generate({ items: [{ type: null, text: "Hi" }], logWarn: false })).toBe(false);
+    expect(generate({ items: [{ type: null, text: "Hi" }], logWarn: false })).toBeNull();
   });
 
   test("skips items with undefined type", () => {
-    expect(generate({ items: [{ text: "Hi" }], logWarn: false })).toBe(false);
+    expect(generate({ items: [{ text: "Hi" }], logWarn: false })).toBeNull();
   });
 
   test("skips items with empty string type", () => {
-    expect(generate({ items: [{ type: "", text: "Hi" }], logWarn: false })).toBe(false);
+    expect(generate({ items: [{ type: "", text: "Hi" }], logWarn: false })).toBeNull();
   });
 
   test("skips invalid type items but renders valid ones", () => {
@@ -232,5 +232,70 @@ describe("Generator", () => {
     const el = container.querySelector("s-text");
     expect(el).not.toBeNull();
     expect(el.textContent).toBe("Good");
+  });
+
+  test("renders item with missing children gracefully", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      attributes: {},
+      children: null,
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    expect(box.childNodes.length).toBe(0);
+  });
+
+  test("renders item with empty children array", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      attributes: {},
+      children: [],
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    expect(box.childNodes.length).toBe(0);
+  });
+
+  test("skips invalid children but renders valid siblings", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      children: [
+        { type: null, text: "Bad child" },
+        { type: "", text: "Also bad" },
+        { type: "s-text", text: "Good child" },
+      ],
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    const text = box.querySelector("s-text");
+    expect(text).not.toBeNull();
+    expect(text.textContent).toBe("Good child");
+  });
+
+  test("renders item with undefined attributes", () => {
+    const container = renderGenerated([{
+      type: "s-text",
+      text: "No attrs",
+    }]);
+    const el = container.querySelector("s-text");
+    expect(el).not.toBeNull();
+    expect(el.textContent).toBe("No attrs");
+  });
+
+  test("handles item with all children having invalid types", () => {
+    const result = generate({
+      items: [{
+        type: "s-box",
+        children: [
+          { type: null, text: "Bad" },
+          { type: "", text: "Also bad" },
+        ],
+      }],
+      logWarn: false,
+    });
+    // Parent box still renders even though children produce null
+    const { container } = render(result);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
   });
 });

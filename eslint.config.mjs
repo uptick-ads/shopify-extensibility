@@ -1,14 +1,10 @@
-import js from "@eslint/js";
-import react from "eslint-plugin-react";
+import preact from "eslint-config-preact";
 import importPlugin from "eslint-plugin-import";
 import jsxA11y from "eslint-plugin-jsx-a11y";
-import globals from "globals";
 
 export default [
-  js.configs.recommended,
+  ...preact,
   importPlugin.flatConfigs.recommended,
-  react.configs.flat.recommended,
-  react.configs.flat["jsx-runtime"],
   jsxA11y.flatConfigs.recommended,
   {
     files: ["**/*.{js,jsx}"],
@@ -19,16 +15,6 @@ export default [
         ecmaFeatures: {
           jsx: true
         }
-      },
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-        ...globals.es2021
-      }
-    },
-    settings: {
-      react: {
-        version: "detect"
       }
     },
     rules: {
@@ -40,8 +26,6 @@ export default [
       }],
       "linebreak-style": 1,
       quotes: ["error", "double"],
-      "react/react-in-jsx-scope": "off",
-      "react/jsx-uses-react": "off",
       "no-unused-vars": [
         "error", { "argsIgnorePattern": "^_" }
       ],

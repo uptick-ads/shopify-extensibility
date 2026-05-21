@@ -6,7 +6,6 @@ import {
   afterAll
 } from "@jest/globals";
 import Api from "./api";
-import merge from "deepmerge";
 import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
@@ -75,10 +74,10 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
   }
 
   const api = new Api({
-    integrationId: integrationId,
+    integrationId,
     captureException: jest.fn((x) => x),
     captureWarning: jest.fn((x) => x),
-    options: options
+    options
   });
   api.setup({
     shopApi: includeShopApi ? shopApi : {
@@ -99,8 +98,6 @@ function generateFlowURL(api, placement, integrationID = null) {
   }
 
   const url = new URL(api.flowURL);
-  url.searchParams.set("api_versions[]", "v1");
-  url.searchParams.append("api_versions[]", "v2");
   url.searchParams.set("placement", placement);
   url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
   url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
@@ -438,6 +435,30 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
 
+    test("rejects double flow_url redirect", async () => {
+      const api = createApi();
+      const flowUrlResponse1 = {
+        flow_url: "https://api.uptick.com/v1/places/place-id/flows/flow-id?param=value"
+      };
+      const flowUrlResponse2 = {
+        flow_url: "https://api.uptick.com/v1/places/place-id/flows/flow-id?param=other"
+      };
+      jest.spyOn(api, "fetchResult")
+        .mockImplementationOnce(() => flowUrlResponse1)
+        .mockImplementationOnce(() => flowUrlResponse2);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getInitialOffer("order_confirmation");
+      expect(result).toBe(false);
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(2);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledWith(
+        new Error("Unexpected second flow_url redirect."),
+        expect.objectContaining({ extra: { flow_url: flowUrlResponse2.flow_url } })
+      );
+    });
+
     test("with integrationID if flow response is valid calls getOfferBase", async () => {
       const api = createApi(true, { integrationId: "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE" });
       const returnResult = {
@@ -625,35 +646,9 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
 
-    test("if v1 data offer has no attributes returns", async () => {
+    test("if offer has no children returns", async () => {
       const api = createApi();
       const returnResult = {
-        api_version: "v1",
-        data: [{
-          type: "offer"
-        }]
-      };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
-      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
-
-      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toBe(false);
-
-      expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
-
-      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
-
-      expect(api.setLoading).toHaveBeenCalledTimes(0);
-      expect(api.captureException).toHaveBeenCalledTimes(0);
-      expect(api.captureWarning).toHaveBeenCalledTimes(1);
-      expect(api.captureWarning).toHaveBeenCalledWith("Offer contained no data.");
-    });
-
-    test("if v2 data offer has no children returns", async () => {
-      const api = createApi();
-      const returnResult = {
-        api_version: "v2",
         data: [{
           type: "offer"
         }]
@@ -684,10 +679,9 @@ describe("api", () => {
         next_offer_url: nextOfferUrl
       };
       const offerResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: { something: true }
+          children: [{ something: true }]
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
@@ -700,8 +694,7 @@ describe("api", () => {
       const result = await api.getOfferBase(rejectUrlBase, { method: "POST", setLoader: api.setLoading });
 
       expect(result.type).toBe("offer");
-      expect(result.api_version).toBe("v1");
-      expect(result.attributes.something).toBe(true);
+      expect(result.children[0].something).toBe(true);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(2);
 
@@ -720,22 +713,45 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
     });
 
+    test("stops following next_offer_url redirects after MAX_REDIRECTS", async () => {
+      const api = createApi();
+      const redirectResponse = {
+        next_offer_url: "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?index=1"
+      };
+
+      jest.spyOn(api, "fetchResult").mockImplementation(() => redirectResponse);
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+      expect(result).toBe(false);
+
+      // 1 initial + 2 redirects + 1 blocked = 3 fetches before guard triggers on 4th call
+      expect(api.fetchResult).toHaveBeenCalledTimes(3);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledWith(
+        new Error("Maximum offer redirects exceeded."),
+        expect.objectContaining({ extra: expect.objectContaining({ _redirectCount: 3 }) })
+      );
+    });
+
     test("if v1 data is type offer sets correctly", async () => {
       const api = createApi();
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: {
+          children: [{
             something: true
-          }
-        }]
+          }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+      expect(result.type).toBe("offer");
+      expect(result.children).toStrictEqual([{ something: true }]);
+      expect(result.links).toStrictEqual(returnResult.links);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
       expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
@@ -750,19 +766,21 @@ describe("api", () => {
     test("if v2 data is type offer sets correctly", async () => {
       const api = createApi();
       const returnResult = {
-        api_version: "v2",
         data: [{
           type: "offer",
           children: [{
             something: true
           }]
-        }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v2" }));
+      expect(result.type).toBe("offer");
+      expect(result.children).toStrictEqual([{ something: true }]);
+      expect(result.links).toStrictEqual(returnResult.links);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
       expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
@@ -779,18 +797,16 @@ describe("api", () => {
       delete api.shopApi.buyerIdentity;
 
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: { something: true }
+          children: [{ something: true }]
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
-      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+      await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
 
       const calledUrl = new URL(api.fetchResult.mock.calls[0][0]);
       expect(calledUrl.searchParams.has("customer_id")).toBe(false);
@@ -804,24 +820,45 @@ describe("api", () => {
       const api = createApi();
 
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: { something: true }
+          children: [{ something: true }]
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
-      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
-      expect(result).toStrictEqual(merge(returnResult.data[0], { api_version: "v1" }));
+      await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
 
       const calledUrl = new URL(api.fetchResult.mock.calls[0][0]);
       expect(calledUrl.searchParams.get("customer_id")).toBe("gid://shopify/Customer/8610705670358");
 
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(0);
+    });
+
+    test("catches offerViewedEvent rejection in fire-and-forget path", async () => {
+      const api = createApi();
+      const returnResult = {
+        data: [{
+          type: "offer",
+          children: [{ something: true }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
+      };
+      const viewError = new Error("Event send failed");
+      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "offerViewedEvent").mockRejectedValue(viewError);
+
+      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+      expect(result.type).toBe("offer");
+
+      // Flush microtasks so the .catch() handler runs
+      await new Promise(resolve => setTimeout(resolve, 0));
+
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledWith(viewError, { extra: { message: "Unhandled error in offerViewedEvent" } });
     });
 
   });
@@ -909,6 +946,33 @@ describe("api", () => {
       expect(api.setLoading).toHaveBeenCalledTimes(0);
       expect(api.captureException).toHaveBeenCalledTimes(0);
     });
+
+    test("reports missing offer_event link", async () => {
+      const api = createApi();
+      const offerResult = { links: {} };
+
+      await api.offerViewedEvent(offerResult);
+
+      expect(api.captureWarning).toHaveBeenCalledTimes(1);
+      expect(api.captureWarning).toHaveBeenCalledWith("Unable to find offer event link from offer.");
+    });
+
+    test("catches and reports fetch errors", async () => {
+      const api = createApi();
+      const fetchError = new Error("Network failure");
+      jest.spyOn(api, "fetchResult").mockRejectedValue(fetchError);
+
+      const offerResult = {
+        links: {
+          offer_event: "https://api.uptick.com/v1/places/place-id/flows/flow-id/events?eid=event-id"
+        }
+      };
+
+      await api.offerViewedEvent(offerResult);
+
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledWith(fetchError, { extra: { message: "Unable to send offer viewed event" } });
+    });
   });
 
   describe("fetchResult", () => {
@@ -937,7 +1001,7 @@ describe("api", () => {
           Accept: "application/json",
           "Content-Type": "application/json",
           "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.0.0"
+          "X-Uptick-Integration-Version": "1.1.0"
         }
       });
 
@@ -973,7 +1037,7 @@ describe("api", () => {
           Accept: "application/json",
           "Content-Type": "application/json",
           "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.0.0"
+          "X-Uptick-Integration-Version": "1.1.0"
         }
       });
 
@@ -996,13 +1060,11 @@ describe("api", () => {
 
       const api = createApi(true, { options });
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: {
-            something: true
-          }
-        }]
+          children: [{ something: true }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
 
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
@@ -1035,13 +1097,11 @@ describe("api", () => {
 
       const api = createApi(true, { options });
       const returnResult = {
-        api_version: "v1",
         data: [{
           type: "offer",
-          attributes: {
-            something: true
-          }
-        }]
+          children: [{ something: true }]
+        }],
+        links: { next_offer: "next_url", offer_event: "event_url" }
       };
 
       jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);

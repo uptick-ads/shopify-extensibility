@@ -6,6 +6,7 @@
     "lint": "npx eslint \"**/*.{js,jsx}\"",
     "lint:fix": "npx eslint --fix \"**/*.{js,jsx}\"",
     "test": "NODE_ENV=test jest",
+    "test:coverage": "NODE_ENV=test jest --coverage",
     "prepare": "if [ -d .git ]; then husky; else echo 'Not a git repo, skipping husky'; fi",
     "changelog": "npx git-cliff --unreleased -o CHANGES.md",
     "changelog:full": "npx git-cliff -o CHANGELOG.md",
@@ -17,24 +18,21 @@
     "node": ">=20"
   },
   "devDependencies": {
-    "@babel/preset-env": "^7.26.0",
+    "@babel/core": "^7.29.0",
+    "@babel/preset-env": "^7.26.x",
     "@babel/preset-react": "^7.26.3",
-    "@eslint/js": "^9.39.0",
-    "@remote-ui/testing": "^1.4.3",
-    "@shopify/react-testing": "^6.0.0",
-    "@shopify/ui-extensions": "2025.7.x",
-    "@shopify/ui-extensions-react": "2025.7.x",
-    "@types/react": "^18.0.0",
-    "deepmerge": "^4.3.1",
+    "babel-jest": "^30.0.0",
+    "@shopify/ui-extensions": "2026.4.x",
+    "@testing-library/preact": "^3.2.0",
+    "@testing-library/jest-dom": "^6.6.0",
     "eslint": "^9.39.0",
+    "eslint-config-preact": "^2.0.0",
     "eslint-plugin-import": "^2.31.0",
     "eslint-plugin-jsx-a11y": "^6.10.2",
-    "eslint-plugin-react": "^7.37.4",
-    "globals": "^16.0.0",
     "husky": "^9.1.7",
     "jest": "^30.0.0",
     "jest-environment-jsdom": "^30.0.0",
-    "react": "^18.0.0",
-    "react-reconciler": "0.29.0"
+    "preact": "^10.10.0",
+    "@preact/signals": "^2.3.0"
   }
 }

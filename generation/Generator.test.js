@@ -2,236 +2,300 @@
  * @jest-environment jsdom
  */
 
-// Have to generate this test different because of error.
-// See https://github.com/Shopify/ui-extensions/issues/712
 import generate from "./Generator.jsx";
-import {describe, expect, test} from "@jest/globals";
-import { mount } from "@remote-ui/testing";
-import { createRoot } from "@remote-ui/react";
-import { Element } from "@shopify/react-testing";
-import "@shopify/react-testing/matchers";
-import merge from "deepmerge";
-import {
-  Badge,
-  BlockLayout,
-  Button,
-  Grid,
-  Heading,
-  Icon,
-  Image,
-  InlineLayout,
-  Link,
-  BlockSpacer, // newline
-  InlineSpacer, // spacer
-  Pressable,
-  Text,
-  View
-} from "@shopify/ui-extensions/checkout";
+import { describe, expect, jest, test } from "@jest/globals";
+import { render } from "@testing-library/preact";
 import { isPresent } from "../utilities/present.js";
 
-const badgeItem = {
-  type: "badge",
-  attributes: {
-  },
-  text: "12"
-};
-
-const blockLayoutItem = {
-  type: "block_layout",
-  attributes: {
-  },
-  text: "Block Text"
-};
-
-const buttonItem = {
-  type: "button",
-  attributes: {
-    to: "https://www.google.com"
-  },
-  text: "Clickme"
-};
-
-const buttonOptions = {
-  loading: false,
-  nextOffer: () => null
-};
-
-const gridItem = {
-  type: "grid",
-  attributes: {
-  },
-  text: "Grid Text"
-};
-
-const headingItem = {
-  type: "heading",
-  attributes: {
-  },
-  text: "Title!"
-};
-
-const iconItem = {
-  type: "icon",
-  attributes: {
-    source: "arrowDown"
-  }
-};
-
-const imageItem = {
-  type: "image",
-  attributes: {
-    source: "https://www.image.com/something.jpg"
-  }
-};
-
-const inlineLayoutItem = {
-  type: "inline_layout",
-  attributes: {
-  },
-  text: "Inline Text"
-};
-
-const linkItem = {
-  type: "link",
-  attributes: {
-    to: "https://www.google.com"
-  },
-  text: "Goto"
-};
-
-const newlineItem = {
-  type: "newline",
-  attributes: {
-  }
-};
-
-const pressableItem = {
-  type: "pressable",
-  attributes: {
-  },
-  text: "Pressable Text"
-};
-
-const spacerItem = {
-  type: "spacer",
-  attributes: {
-  }
-};
-
-const textItem = {
-  type: "text",
-  attributes: {
-  },
-  text: "Custom"
-};
-
-const viewItem = {
-  type: "view",
-  attributes: {
-  },
-  text: "View Text"
-};
+const badgeItem = { type: "s-badge", attributes: {}, text: "12" };
+const boxItem = { type: "s-box", attributes: {}, text: "Box Text" };
+const buttonItem = { type: "s-button", attributes: { href: "https://www.google.com" }, url: "https://www.google.com", text: "Clickme" };
+const clickableItem = { type: "s-clickable", attributes: {}, text: "Clickable Text" };
+const gridItem = { type: "s-grid", attributes: {}, text: "Grid Text" };
+const headingItem = { type: "s-heading", attributes: {}, text: "Title!" };
+const iconItem = { type: "s-icon", attributes: { source: "arrowDown" } };
+const imageItem = { type: "s-image", attributes: { src: "https://www.image.com/something.jpg" } };
+const linkItem = { type: "s-link", attributes: { href: "https://www.google.com" }, url: "https://www.google.com", text: "Goto" };
+const paragraphItem = { type: "s-paragraph", attributes: {}, text: "Paragraph Text" };
+const spacerItem = { type: "s-spacer", attributes: {} };
+const textItem = { type: "s-text", attributes: {}, text: "Custom" };
 
 const eachItem = [
-  { item: badgeItem, component: Badge },
-  { item: blockLayoutItem, component: BlockLayout },
-  { item: buttonItem, component: Button, options: { button: buttonOptions }, extra_attributes: 2 },
-  { item: gridItem, component: Grid },
-  { item: headingItem, component: Heading },
-  { item: iconItem, component: Icon },
-  { item: imageItem, component: Image },
-  { item: inlineLayoutItem, component: InlineLayout },
-  { item: linkItem, component: Link },
-  { item: newlineItem, component: BlockSpacer },
-  { item: pressableItem, component: Pressable },
-  { item: spacerItem, component: InlineSpacer },
-  { item: textItem, component: Text },
-  { item: viewItem, component: View }
+  { item: badgeItem, tagName: "s-badge" },
+  { item: boxItem, tagName: "s-box" },
+  { item: buttonItem, tagName: "s-button", options: { loading: false, nextOffer: () => null } },
+  { item: clickableItem, tagName: "s-clickable" },
+  { item: gridItem, tagName: "s-grid" },
+  { item: headingItem, tagName: "s-heading" },
+  { item: iconItem, tagName: "s-icon" },
+  { item: imageItem, tagName: "s-image" },
+  { item: linkItem, tagName: "s-link", options: { loading: false, nextOffer: () => null } },
+  { item: paragraphItem, tagName: "s-paragraph" },
+  { item: spacerItem, tagName: "s-spacer" },
+  { item: textItem, tagName: "s-text" },
 ];
 
-function mountRoot(items, options) {
-  const generatedComponents = generate({ defaultKeyName: "test", items: items, level: 1, options: options });
-  return mount((root) => {
-    return createRoot(root).render(generatedComponents);
-  });
+function renderGenerated(items, options) {
+  const generatedComponents = generate({ items, level: 1, options });
+  const { container } = render(generatedComponents);
+  return container;
 }
 
-function createElement(root, type) {
-  const rawComponent = root.find(type);
-  return new Element(rawComponent, rawComponent.children, root);
-}
-
-describe("Generation Tests", () => {
+describe("Generator", () => {
   eachItem.forEach((detail) => {
     test(`creates ${detail.item.type} component`, () => {
-      const root = mountRoot([detail.item], detail.options);
-      const component = createElement(root, detail.component);
-      expect(component.is(detail.component)).toBeTruthy();
+      const container = renderGenerated([detail.item], detail.options);
+      const el = container.querySelector(detail.tagName);
+      expect(el).not.toBeNull();
       if (isPresent(detail.item.text)) {
-        expect(component.text()).toBe(detail.item.text);
+        expect(el.textContent).toBe(detail.item.text);
       } else {
-        expect(component.text()).toBe("");
+        expect(el.textContent).toBe("");
       }
-      expect(Object.keys(component.props).length).toBe(Object.keys(detail.item.attributes).length + (detail.extra_attributes || 0));
     });
 
     test(`creates 3 components of ${detail.item.type}`, () => {
-      const root = mountRoot([detail.item, detail.item, detail.item], detail.options);
-      const components = root.findAll(detail.component);
-      expect(components.length).toBe(3);
-      components.forEach((rawComponent) => {
-        const component = new Element(rawComponent, rawComponent.children, root);
-        expect(component.is(detail.component)).toBeTruthy();
-      });
+      const container = renderGenerated([detail.item, detail.item, detail.item], detail.options);
+      const elements = container.querySelectorAll(detail.tagName);
+      expect(elements.length).toBe(3);
     });
   });
 
-  test("when items is empty returns false", () => {
-    expect(generate({ defaultKeyName: "test", items: [] })).toBe(false);
+  test("when items is empty returns null", () => {
+    expect(generate({ items: [] })).toBeNull();
   });
 
-  test("when defaultKeyName is empty returns false", () => {
-    expect(generate({ defaultKeyName: "", items: [textItem], logWarn: false })).toBe(false);
+  test("when type has no s- prefix it gets prepended", () => {
+    const container = renderGenerated([{ type: "banner", text: "Alert!" }]);
+    const el = container.querySelector("s-banner");
+    expect(el).not.toBeNull();
+    expect(el.textContent).toBe("Alert!");
   });
 
-  test("when type is unknown returns false", () => {
-    const copy = merge(textItem, { type: "crazy" });
-    expect(generate({ defaultKeyName: "test", items: [copy], logWarn: false })).toBe(false);
+  test("prepends s- to standard types without prefix", () => {
+    const items = [
+      { type: "box", children: [{ type: "text", text: "Hello" }] },
+      { type: "button", text: "Click", attributes: { href: "https://example.com" } },
+      { type: "grid", children: [{ type: "heading", text: "Title" }] },
+    ];
+    const container = renderGenerated(items);
+    expect(container.querySelector("s-box")).not.toBeNull();
+    expect(container.querySelector("s-text").textContent).toBe("Hello");
+    expect(container.querySelector("s-button").textContent).toBe("Click");
+    expect(container.querySelector("s-grid")).not.toBeNull();
+    expect(container.querySelector("s-heading").textContent).toBe("Title");
   });
 
-  eachItem.filter((detail) => ["badge", "block_layout", "button", "grid", "heading", "inline_layout", "link", "pressable", "text", "view"].includes(detail.item.type)).forEach((detail) => {
-    test(`when ${detail.item.type} text and children is empty returns false`, () => {
-      const copy = merge(detail.item, { text: "" });
-      expect(generate({ defaultKeyName: "test", items: [copy], logWarn: false, options: detail.options })).toBe(false);
-    });
-  });
-
-  eachItem.filter((detail) => ["badge", "block_layout", "button", "grid", "heading", "inline_layout", "link", "pressable", "text", "view"].includes(detail.item.type)).forEach((detail) => {
-    test(`when ${detail.item.type} text and children is empty returns false`, () => {
-      const copy = merge(detail.item, { text: "" });
-      expect(generate({ defaultKeyName: "test", items: [copy], logWarn: false, options: detail.options, allowEmpty: true })).not.toBe(false);
-    });
-  });
-
-  test("creates text with child text and link", () => {
-    const parent = merge(textItem, {
+  test("creates element with child elements", () => {
+    const parent = {
+      type: "s-box",
+      attributes: {},
       text: "",
+      children: [badgeItem],
+    };
+
+    const container = renderGenerated([parent], {});
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    const childBadge = box.querySelector("s-badge");
+    expect(childBadge).not.toBeNull();
+    expect(childBadge.textContent).toBe(badgeItem.text);
+  });
+
+  test("renders a nested v2 offer structure", () => {
+    const items = [{
+      type: "s-box",
+      attributes: { border: "base" },
       children: [
-        badgeItem
-      ]
+        {
+          type: "s-grid",
+          name: "header",
+          attributes: { padding: "large" },
+          children: [{ type: "s-heading", text: "Your order is confirmed" }],
+        },
+        {
+          type: "s-box",
+          name: "offer",
+          children: [
+            { type: "s-paragraph", text: "Special offer" },
+            {
+              type: "s-grid",
+              name: "actions",
+              children: [
+                { type: "s-button", text: "Claim offer", attributes: { variant: "primary", href: "https://uptick.com" } },
+                { type: "s-link", children: [{ type: "s-text", text: "No, thanks" }] },
+              ],
+            },
+          ],
+        },
+      ],
+    }];
+
+    const container = renderGenerated(items);
+    expect(container.querySelector("s-box")).not.toBeNull();
+    expect(container.querySelector("s-heading").textContent).toBe("Your order is confirmed");
+    expect(container.querySelector("s-paragraph").textContent).toBe("Special offer");
+    expect(container.querySelector("s-button").textContent).toBe("Claim offer");
+    expect(container.querySelector("s-button").getAttribute("variant")).toBe("primary");
+    expect(container.querySelector("s-link s-text").textContent).toBe("No, thanks");
+  });
+
+  test("renders correct number of attributes on element", () => {
+    const container = renderGenerated([{
+      type: "s-button",
+      text: "Go",
+      attributes: { href: "https://example.com", variant: "primary", accessibilityLabel: "Go button" },
+    }]);
+    const btn = container.querySelector("s-button");
+    expect(btn.attributes.length).toBe(3);
+    expect(btn.getAttribute("href")).toBe("https://example.com");
+    expect(btn.getAttribute("variant")).toBe("primary");
+    expect(btn.getAttribute("accessibilityLabel")).toBe("Go button");
+  });
+
+  test("uses top-level url as nextOffer click target", () => {
+    const nextOffer = jest.fn();
+    const container = renderGenerated([{
+      type: "s-link",
+      name: "button-reject",
+      url: "https://example.com/reject",
+      children: [{ type: "s-paragraph", text: "No, thanks" }],
+    }], { loading: false, nextOffer });
+    const link = container.querySelector("s-link");
+    link.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(nextOffer).toHaveBeenCalledWith("https://example.com/reject");
+  });
+
+  test("normalizes type options for s-prefixed action types", () => {
+    const nextOffer = jest.fn();
+    const container = renderGenerated([{
+      type: "s-button",
+      text: "Reject",
+      url: "https://example.com/reject",
+    }], { loading: false, nextOffer });
+    const button = container.querySelector("s-button");
+    button.dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(nextOffer).toHaveBeenCalledWith("https://example.com/reject");
+  });
+
+  test("does not render loading or nextOffer as attributes", () => {
+    const container = renderGenerated([{
+      type: "s-button",
+      text: "Reject",
+      url: "https://example.com/reject",
+      attributes: { variant: "secondary" },
+    }], { loading: false, nextOffer: jest.fn() });
+    const button = container.querySelector("s-button");
+    expect(button.getAttribute("variant")).toBe("secondary");
+    expect(button.hasAttribute("nextOffer")).toBe(false);
+    expect(button.hasAttribute("loading")).toBe(false);
+  });
+
+  test("element with no attributes has zero attributes", () => {
+    const container = renderGenerated([{ type: "s-text", text: "Plain" }]);
+    const el = container.querySelector("s-text");
+    expect(el.attributes.length).toBe(0);
+  });
+
+  test("passes attributes through to the element", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      text: "Padded",
+      attributes: { padding: "base", border: "dashed" },
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box.getAttribute("padding")).toBe("base");
+    expect(box.getAttribute("border")).toBe("dashed");
+  });
+
+  test("returns null for null items", () => {
+    expect(generate({ items: null, logWarn: false })).toBeNull();
+  });
+
+  test("skips items with null type", () => {
+    expect(generate({ items: [{ type: null, text: "Hi" }], logWarn: false })).toBeNull();
+  });
+
+  test("skips items with undefined type", () => {
+    expect(generate({ items: [{ text: "Hi" }], logWarn: false })).toBeNull();
+  });
+
+  test("skips items with empty string type", () => {
+    expect(generate({ items: [{ type: "", text: "Hi" }], logWarn: false })).toBeNull();
+  });
+
+  test("skips invalid type items but renders valid ones", () => {
+    const container = renderGenerated([
+      { type: null, text: "Bad" },
+      { type: "s-text", text: "Good" },
+    ]);
+    const el = container.querySelector("s-text");
+    expect(el).not.toBeNull();
+    expect(el.textContent).toBe("Good");
+  });
+
+  test("renders item with missing children gracefully", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      attributes: {},
+      children: null,
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    expect(box.childNodes.length).toBe(0);
+  });
+
+  test("renders item with empty children array", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      attributes: {},
+      children: [],
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    expect(box.childNodes.length).toBe(0);
+  });
+
+  test("skips invalid children but renders valid siblings", () => {
+    const container = renderGenerated([{
+      type: "s-box",
+      children: [
+        { type: null, text: "Bad child" },
+        { type: "", text: "Also bad" },
+        { type: "s-text", text: "Good child" },
+      ],
+    }]);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
+    const text = box.querySelector("s-text");
+    expect(text).not.toBeNull();
+    expect(text.textContent).toBe("Good child");
+  });
+
+  test("renders item with undefined attributes", () => {
+    const container = renderGenerated([{
+      type: "s-text",
+      text: "No attrs",
+    }]);
+    const el = container.querySelector("s-text");
+    expect(el).not.toBeNull();
+    expect(el.textContent).toBe("No attrs");
+  });
+
+  test("handles item with all children having invalid types", () => {
+    const result = generate({
+      items: [{
+        type: "s-box",
+        children: [
+          { type: null, text: "Bad" },
+          { type: "", text: "Also bad" },
+        ],
+      }],
+      logWarn: false,
     });
-
-    const generatedComponents = generate({ defaultKeyName: "test", items: [parent] });
-    const root = mount((root) => {
-      return createRoot(root).render(generatedComponents);
-    });
-    const rawComponent = root.find(Text);
-
-    const viewComponent = new Element(rawComponent, rawComponent.children, root);
-    expect(viewComponent.is(Text)).toBeTruthy();
-
-    const childText = viewComponent.find(Badge);
-    expect(childText.is(Badge)).toBeTruthy();
-    expect(childText.text).toBe(badgeItem.text);
+    // Parent box still renders even though children produce null
+    const { container } = render(result);
+    const box = container.querySelector("s-box");
+    expect(box).not.toBeNull();
   });
 });

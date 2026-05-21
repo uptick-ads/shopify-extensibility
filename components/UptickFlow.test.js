@@ -1,94 +1,44 @@
+/**
+ * @jest-environment jsdom
+ */
+
 import {
   describe,
   expect,
   test,
-  beforeEach
+  jest
 } from "@jest/globals";
-import { addURLtoV1, addURLtoV2 } from "./UptickFlow.jsx";
+import { render } from "@testing-library/preact";
+import UptickOffer from "./UptickFlow.jsx";
 
-const v1SampleData = {
-  type: "offer",
-  id: "1",
-  attributes: {
-    actions: [
-      {
-        type: "button",
-        text: "Accept Offer",
-        attributes: {
-          to: "https://app.uptick.com/accept"
-        }
-      },
-      {
-        type: "button",
-        text: "Decline Offer",
-        url: "https://app.uptick.com/reject"
-      }
-    ]
-  },
-  links: {
-    next_offer: "https://example.com/next_offer"
-  }
-};
-
-describe("addURLtoV1", () => {
-  let v1OfferData;
-
-  beforeEach(() => {
-    // clone the first offer and attach the top‐level links
-    v1OfferData = JSON.parse(JSON.stringify(v1SampleData));
-  });
-
-  test("adds url and external to actions with to property", () => {
-    const updated = addURLtoV1(v1OfferData);
-    const nextOfferLink = v1SampleData.links.next_offer;
-    // find the action that originally had a `to`
-    const withTo = updated.attributes.actions.find(a => a.attributes?.to != null);
-    expect(withTo).toBeDefined();
-    expect(withTo.url).toBe(nextOfferLink);
-    expect(withTo.attributes.external).toBe(true);
-  });
-
-  test("does nothing for actions without a to property", () => {
-    const updated = addURLtoV1(v1OfferData);
-    // find an action that had no `to`
-    const withoutTo = updated.attributes.actions.find(a => a.attributes?.to == null);
-    expect(withoutTo).toBeDefined();
-    expect(withoutTo.url).toBeDefined();
-    // external should not have been set to true
-    expect(withoutTo.attributes).toBeUndefined();
-  });
-});
-
-const v2SampleData = {
+const sampleData = {
   type: "offer",
   id: "1",
   children: [
     {
-      type: "view",
+      type: "s-box",
       children: [
         {
-          type: "grid",
+          type: "s-grid",
           children: [
             {
-              type: "text",
+              type: "s-text",
               text: "Welcome to Uptick!"
             },
             {
-              type: "view",
+              type: "s-box",
               children: [
                 {
-                  type: "button",
+                  type: "s-button",
                   text: "Claim your $20",
                   name: "button-accept",
-                  attributes: {
-                    to: "https://app.uptick.com/evt/flows/b7677e93-9e84-4215-aecc-c8c1352dd77d/events/989496d0-bf25-42aa-98ac-6668e672c730/accept?index=1\u0026placement=order_confirmation"
-                  }
+                  url: "https://example.com/next_offer"
                 },
                 {
-                  type: "link",
+                  type: "s-link",
                   name: "button-reject",
                   text: "Forfeit your $20",
-                  url: "https://app.uptick.com/evt/flows/b7677e93-9e84-4215-aecc-c8c1352dd77d/events/989496d0-bf25-42aa-98ac-6668e672c730/reject?index=1\u0026placement=order_confirmation"
+                  url: "https://app.uptick.com/reject"
                 }
               ]
             }
@@ -102,33 +52,73 @@ const v2SampleData = {
   }
 };
 
-describe("addURLtoV2", () => {
-  let v2OfferData;
+function cloneOffer() {
+  return JSON.parse(JSON.stringify(sampleData));
+}
 
-  beforeEach(() => {
-    // clone the first offer and attach the top‐level links
-    v2OfferData = JSON.parse(JSON.stringify(v2SampleData));
+describe("UptickOffer", () => {
+  test("renders loading state when loading is true and offer is null", () => {
+    const { container } = render(<UptickOffer offer={null} loading={true} />);
+    expect(container.querySelector("s-grid")).not.toBeNull();
+    expect(container.querySelector("s-spinner")).not.toBeNull();
+    expect(container.querySelector("s-skeleton-paragraph")).not.toBeNull();
   });
 
-  test("adds url and external to actions with to property", () => {
-    const updated = addURLtoV2(v2OfferData);
-    const nextOfferLink = v2SampleData.links.next_offer;
-    // find the action that originally had a `to`
-    const withTo = updated.children[0].children[0].children[1].children[0];
-    expect(withTo).toBeDefined();
-    expect(withTo.attributes.to).toBeDefined();
-    expect(withTo.url).toBe(nextOfferLink);
-    expect(withTo.attributes.external).toBe(true);
+  test("renders nothing when offer is null and not loading", () => {
+    const { container } = render(<UptickOffer offer={null} loading={false} />);
+    expect(container.innerHTML).toBe("");
   });
 
-  test("does nothing for actions without a to property", () => {
-    const updated = addURLtoV2(v2OfferData);
-    // find an action that had no `to`
-    const withoutTo = updated.children[0].children[0].children[1].children[1];
-    expect(withoutTo).toBeDefined();
-    expect(withoutTo.to).toBeUndefined();
-    expect(withoutTo.url).toBeDefined();
-    // external should not have been set to true
-    expect(withoutTo.attributes).toBeUndefined();
+  test("renders nothing when offer is false", () => {
+    const { container } = render(<UptickOffer offer={false} loading={false} />);
+    expect(container.innerHTML).toBe("");
+  });
+
+  test("renders offer children through Generator", () => {
+    const offer = cloneOffer();
+    const nextOffer = jest.fn();
+    const { container } = render(<UptickOffer offer={offer} loading={false} nextOffer={nextOffer} />);
+
+    expect(container.querySelector("s-box")).not.toBeNull();
+    expect(container.querySelector("s-grid")).not.toBeNull();
+    expect(container.querySelector("s-text").textContent).toBe("Welcome to Uptick!");
+    expect(container.querySelector("s-button").textContent).toBe("Claim your $20");
+    expect(container.querySelector("s-link").textContent).toBe("Forfeit your $20");
+  });
+
+  test("accept action calls nextOffer with next offer url", () => {
+    const offer = cloneOffer();
+    const nextOffer = jest.fn();
+    const { container } = render(<UptickOffer offer={offer} loading={false} nextOffer={nextOffer} />);
+
+    container.querySelector("s-button").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(nextOffer).toHaveBeenCalledWith(sampleData.links.next_offer);
+  });
+
+  test("reject action calls nextOffer with reject url", () => {
+    const offer = cloneOffer();
+    const nextOffer = jest.fn();
+    const { container } = render(<UptickOffer offer={offer} loading={false} nextOffer={nextOffer} />);
+
+    container.querySelector("s-link").dispatchEvent(new MouseEvent("click", { bubbles: true }));
+    expect(nextOffer).toHaveBeenCalledWith("https://app.uptick.com/reject");
+  });
+
+  test("renders children passthrough", () => {
+    const offer = cloneOffer();
+    const { container } = render(
+      <UptickOffer offer={offer} loading={false}>
+        <s-text>Debug Info</s-text>
+      </UptickOffer>
+    );
+
+    const texts = container.querySelectorAll("s-text");
+    const debugText = Array.from(texts).find(el => el.textContent === "Debug Info");
+    expect(debugText).not.toBeNull();
+  });
+
+  test("renders nothing when offer is null with no loading param", () => {
+    const { container } = render(<UptickOffer offer={null} />);
+    expect(container.innerHTML).toBe("");
   });
 });

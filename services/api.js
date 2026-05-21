@@ -1,5 +1,7 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
 
+const MAX_REDIRECTS = 3;
+
 export default class Api {
   constructor({
     integrationId = null,
@@ -52,7 +54,7 @@ export default class Api {
     }
 
     if (["order_status", "order_confirmation"].includes(placement) === false) {
-      this.captureException(new Error("Placement must be order_status or order_confirmation"), { extra: { placement: placement } });
+      this.captureException(new Error("Placement must be order_status or order_confirmation"), { extra: { placement } });
       return false;
     }
 
@@ -65,9 +67,6 @@ export default class Api {
     const url = new URL(this.flowURL);
 
     try {
-      this.addParam(url, "v1", "api_versions[]");
-      url.searchParams.append("api_versions[]", "v2");
-
       this.addParam(url, placement, "placement");
       this.addParam(url, this.shopApi.shop.myshopifyDomain, "shop_myshopify_domain");
 
@@ -76,6 +75,7 @@ export default class Api {
 
       // Pass editor context if present (theme/checkout editor preview)
       if (this.shopApi?.extension?.editor) {
+        // await new Promise(resolve => setTimeout(resolve, 100000));
         url.searchParams.set("editor", "1");
       }
 
@@ -92,7 +92,13 @@ export default class Api {
 
       // Handle no_redirect response — follow flow_url if present
       if (isPresent(this.flow?.flow_url)) {
-        this.flow = await this.fetchResult(this.flow.flow_url, { setLoader: this.noop });
+        const flowUrl = this.flow.flow_url;
+        this.flow = await this.fetchResult(flowUrl, { setLoader: this.noop });
+
+        if (isPresent(this.flow?.flow_url)) {
+          this.captureException(new Error("Unexpected second flow_url redirect."), { extra: { flow_url: this.flow.flow_url } });
+          return false;
+        }
       }
 
       if (this.flow == null) {
@@ -135,10 +141,15 @@ export default class Api {
       method = "GET"; // New offers are fetched with GET
     }
 
-    return await this.getOfferBase(nextOfferURL, { method: method, setLoader: this.setLoading });
+    return await this.getOfferBase(nextOfferURL, { method, setLoader: this.setLoading });
   }
 
-  async getOfferBase(offerURL, { method, setLoader }) {
+  async getOfferBase(offerURL, { method, setLoader, _redirectCount = 0 } = {}) {
+    if (_redirectCount >= MAX_REDIRECTS) {
+      this.captureException(new Error("Maximum offer redirects exceeded."), { extra: { offerURL, _redirectCount } });
+      return false;
+    }
+
     const url = new URL(offerURL);
 
     try {
@@ -182,7 +193,7 @@ export default class Api {
 
     // Handle no_redirect response — follow next_offer_url if present
     if (isPresent(offerResult?.next_offer_url)) {
-      return await this.getOfferBase(offerResult.next_offer_url, { setLoader });
+      return await this.getOfferBase(offerResult.next_offer_url, { setLoader, _redirectCount: _redirectCount + 1 });
     }
 
     if (offerResult == null) {
@@ -201,17 +212,16 @@ export default class Api {
       return false;
     }
 
-    // V1 uses attributes, V2 uses children
-    if (offerData.attributes == null && offerData.children == null) {
+    if (offerData.children == null) {
       this.captureWarning("Offer contained no data.");
       return false;
     }
 
-    // bring api version down
-    offerData.api_version = offerResult.api_version;
     offerData.links = offerResult.links;
     // Send without blocking
-    this.offerViewedEvent(offerResult);
+    Promise.resolve(this.offerViewedEvent(offerResult)).catch((error) => {
+      this.captureException(error, { extra: { message: "Unhandled error in offerViewedEvent" } });
+    });
     return offerData;
   }
 
@@ -228,12 +238,12 @@ export default class Api {
       this.addParam(url, this.getTimeStamp(), "ts"); // Current Timestamp
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl"); // Location
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl"); // Referrer
-      if (navigator != null) { // Window doesn't exist
+      if (navigator != null) {
         this.addParam(url, navigator?.language, "de"); // Navigator Language
         this.addParam(url, navigator?.userAgent, "ua"); // User Agent string
       }
 
-      return this.fetchResult(url.toString(), { method: "POST", setLoader: this.noop, parseJson: false });
+      return await this.fetchResult(url.toString(), { method: "POST", setLoader: this.noop, parseJson: false });
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to send offer viewed event" } });
     }
@@ -260,7 +270,7 @@ export default class Api {
         url.searchParams.set(query_param_key, value);
       }
     } catch (error) {
-      this.captureException(error, { extra: { message: "Unable to set shop api key", query_param_key: query_param_key, value: value } });
+      this.captureException(error, { extra: { message: "Unable to set shop api key", query_param_key, value } });
     }
   }
 
@@ -276,7 +286,7 @@ export default class Api {
           Accept: "application/json",
           "Content-Type": "application/json",
           "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.0.0"
+          "X-Uptick-Integration-Version": "1.1.0"
         }
       });
 
@@ -286,7 +296,7 @@ export default class Api {
 
       return rawResult.body;
     } catch (error) {
-      this.captureException(error, { extra: { url: url, method: method, parseJson: parseJson } });
+      this.captureException(error, { extra: { url, method, parseJson } });
       return null;
     } finally {
       setLoader(false);

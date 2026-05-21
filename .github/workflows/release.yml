@@ -127,7 +127,7 @@ jobs:
 
       - name: Post to Slack
         if: steps.check_tag.outputs.skip == 'false' && env.SLACK_BOT_TOKEN != ''
-        uses: slackapi/slack-github-action@v3.0.1
+        uses: slackapi/slack-github-action@v3.0.2
         with:
           method: chat.postMessage
           token: ${{ env.SLACK_BOT_TOKEN }}

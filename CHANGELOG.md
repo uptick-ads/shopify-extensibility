@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [2026.6.1+2] - 2026-06-01
+
+
+### Chore
+- *(deps)* Bump orhun/git-cliff-action from 4.7.1 to 4.8.0
+
 ## [2026.6.1+1] - 2026-06-01
 
 

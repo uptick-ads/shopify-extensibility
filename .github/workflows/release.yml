@@ -146,7 +146,7 @@ jobs:
 
       - name: Create GitHub Release
         if: steps.check_tag.outputs.skip == 'false'
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
           tag_name: ${{ steps.version.outputs.NEXT_VERSION }}

@@ -1,6 +1,13 @@
 # Changelog
 
 
+## [2026.6.1+1] - 2026-06-01
+
+
+### Chore
+- *(deps)* Bump slackapi/slack-github-action from 3.0.1 to 3.0.3
+- *(deps)* Bump softprops/action-gh-release from 2 to 3
+
 ## [2026.5.21+1] - 2026-05-21
 
 

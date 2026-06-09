@@ -1,4 +1,5 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
+import { buildFetchFailureContext } from "../utilities/fetchFailureContext.js";
 
 const MAX_REDIRECTS = 3;
 
@@ -238,7 +239,7 @@ export default class Api {
       this.addParam(url, this.getTimeStamp(), "ts"); // Current Timestamp
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl"); // Location
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl"); // Referrer
-      if (navigator != null) {
+      if (typeof navigator !== "undefined") {
         this.addParam(url, navigator?.language, "de"); // Navigator Language
         this.addParam(url, navigator?.userAgent, "ua"); // User Agent string
       }
@@ -276,9 +277,12 @@ export default class Api {
 
   async fetchResult(url, { method = "GET", setLoader, parseJson = true }) {
     setLoader(true);
+    const startedAt = this.getTimeStamp();
+    let phase = "fetch";
+    let rawResult = null;
 
     try {
-      let rawResult = await fetch(url, {
+      rawResult = await fetch(url, {
         method: method ?? "GET",
         redirect: "follow",
         cache: "no-cache",
@@ -291,12 +295,22 @@ export default class Api {
       });
 
       if (parseJson) {
+        phase = "parse_json";
         return await rawResult.json();
       }
 
+      phase = "read_body";
       return rawResult.body;
     } catch (error) {
-      this.captureException(error, { extra: { url, method, parseJson } });
+      this.captureException(error, buildFetchFailureContext(url, {
+        method,
+        parseJson,
+        phase,
+        startedAt,
+        endedAt: this.getTimeStamp(),
+        error,
+        response: rawResult,
+      }));
       return null;
     } finally {
       setLoader(false);

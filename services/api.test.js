@@ -1046,8 +1046,36 @@ describe("api", () => {
       expect(api.setLoading.mock.calls[1][0]).toBe(false);
 
       expect(api.captureException).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledWith("failed", { extra: { url: "https://www.test.com", method: "POST", parseJson: true } });
+      expect(api.captureException).toHaveBeenCalledWith("failed", {
+        message: "Fetch failed:",
+        extra: expect.objectContaining({
+          url: "https://www.test.com",
+          method: "POST",
+          parse_json: true,
+          request_phase: "parse_json",
+          request_type: "unknown",
+          url_host: "www.test.com",
+          url_origin: "https://www.test.com",
+          url_path: "/",
+        }),
+        tags: expect.objectContaining({
+          "uptick.fetch_error": "string",
+          "uptick.fetch_host": "www.test.com",
+          "uptick.request_phase": "parse_json",
+          "uptick.request_type": "unknown",
+        }),
+        contexts: expect.objectContaining({
+          fetch_request: expect.objectContaining({
+            method: "POST",
+            parse_json: true,
+            phase: "parse_json",
+            request_type: "unknown",
+            url_host: "www.test.com",
+          }),
+        }),
+      });
     });
+
   });
 
   describe("options", () => {

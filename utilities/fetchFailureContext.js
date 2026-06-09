@@ -69,49 +69,82 @@ export function navigatorContext() {
   });
 }
 
-export function buildFetchFailureContext(url, { method, parseJson, phase, startedAt, endedAt, error, response } = {}) {
+export function buildFetchFailureContext(url, options = {}) {
+  const { method, parseJson, phase, startedAt, endedAt, error, response } = options;
   const elapsedMs = startedAt == null || endedAt == null ? undefined : endedAt - startedAt;
-  const requestContext = requestUrlContext(url);
-  const runtimeContext = navigatorContext();
-  const responseContext = compactObject({
-    response_status: response?.status,
-    response_status_text: response?.statusText,
-    response_url: response?.url,
-    response_type: response?.type,
-    response_redirected: response?.redirected,
-  });
-  const extra = compactObject({
-    url,
-    method,
-    parse_json: parseJson,
-    request_phase: phase,
-    request_elapsed_ms: elapsedMs,
-    ...requestContext,
-    ...responseContext,
-    ...errorContext(error),
-    ...runtimeContext,
-  });
 
-  return {
-    message: "Fetch failed:",
-    extra,
-    tags: compactObject({
-      "uptick.request_type": requestContext.request_type,
-      "uptick.request_phase": phase,
-      "uptick.fetch_host": requestContext.url_host,
-      "uptick.fetch_error": error?.name || typeof error,
-      "uptick.navigator_online": runtimeContext.navigator_online == null ? undefined : String(runtimeContext.navigator_online),
-    }),
-    contexts: {
-      fetch_request: compactObject({
+  try {
+    const requestContext = requestUrlContext(url);
+    const runtimeContext = navigatorContext();
+    const responseContext = compactObject({
+      response_status: response?.status,
+      response_status_text: response?.statusText,
+      response_url: response?.url,
+      response_type: response?.type,
+      response_redirected: response?.redirected,
+    });
+    const extra = compactObject({
+      url,
+      method,
+      parse_json: parseJson,
+      request_phase: phase,
+      request_elapsed_ms: elapsedMs,
+      ...requestContext,
+      ...responseContext,
+      ...errorContext(error),
+      ...runtimeContext,
+    });
+
+    return {
+      message: "Fetch failed:",
+      extra,
+      tags: compactObject({
+        "uptick.request_type": requestContext.request_type,
+        "uptick.request_phase": phase,
+        "uptick.fetch_host": requestContext.url_host,
+        "uptick.fetch_error": error?.name || typeof error,
+        "uptick.navigator_online": runtimeContext.navigator_online == null ? undefined : String(runtimeContext.navigator_online),
+      }),
+      contexts: {
+        fetch_request: compactObject({
+          method,
+          parse_json: parseJson,
+          phase,
+          elapsed_ms: elapsedMs,
+          ...requestContext,
+        }),
+        fetch_runtime: runtimeContext,
+        fetch_response: responseContext,
+      },
+    };
+  } catch (contextError) {
+    return {
+      message: "Fetch failed:",
+      extra: compactObject({
+        url,
         method,
         parse_json: parseJson,
-        phase,
-        elapsed_ms: elapsedMs,
-        ...requestContext,
+        request_phase: phase,
+        request_elapsed_ms: elapsedMs,
+        fetch_context_error_name: contextError?.name,
+        fetch_context_error_message: contextError?.message,
       }),
-      fetch_runtime: runtimeContext,
-      fetch_response: responseContext,
-    },
-  };
+      tags: compactObject({
+        "uptick.request_phase": phase,
+        "uptick.fetch_context_error": contextError?.name || typeof contextError,
+      }),
+      contexts: {
+        fetch_request: compactObject({
+          method,
+          parse_json: parseJson,
+          phase,
+          elapsed_ms: elapsedMs,
+        }),
+        fetch_context_error: compactObject({
+          name: contextError?.name,
+          message: contextError?.message,
+        }),
+      },
+    };
+  }
 }

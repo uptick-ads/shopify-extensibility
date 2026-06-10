@@ -8,6 +8,7 @@ import {
   buildFetchFailureContext,
   errorContext,
   inferRequestType,
+  mergeCaptureContext,
   navigatorContext,
   requestUrlContext,
 } from "./fetchFailureContext";
@@ -16,6 +17,76 @@ const originalNavigator = global.navigator;
 
 afterEach(() => {
   global.navigator = originalNavigator;
+});
+
+describe("mergeCaptureContext", () => {
+  test("merges top-level context and Sentry data bags", () => {
+    expect(mergeCaptureContext(
+      {
+        message: "Fetch failed:",
+        extra: {
+          method: "GET",
+          request_type: "offer",
+        },
+        tags: {
+          "uptick.request_type": "offer",
+        },
+        contexts: {
+          fetch_request: {
+            method: "GET",
+          },
+        },
+      },
+      {
+        level: "warning",
+        extra: {
+          non_blocking: true,
+        },
+        tags: {
+          "uptick.request_importance": "telemetry",
+        },
+      },
+    )).toStrictEqual({
+      message: "Fetch failed:",
+      level: "warning",
+      extra: {
+        method: "GET",
+        request_type: "offer",
+        non_blocking: true,
+      },
+      tags: {
+        "uptick.request_type": "offer",
+        "uptick.request_importance": "telemetry",
+      },
+      contexts: {
+        fetch_request: {
+          method: "GET",
+        },
+      },
+    });
+  });
+
+  test("replaces named contexts instead of deep merging them", () => {
+    expect(mergeCaptureContext(
+      {
+        contexts: {
+          fetch_request: {
+            method: "GET",
+            phase: "fetch",
+          },
+        },
+      },
+      {
+        contexts: {
+          fetch_request: {
+            purpose: "override",
+          },
+        },
+      },
+    ).contexts.fetch_request).toStrictEqual({
+      purpose: "override",
+    });
+  });
 });
 
 describe("inferRequestType", () => {

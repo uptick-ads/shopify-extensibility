@@ -1,5 +1,8 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
-import { buildFetchFailureContext } from "../utilities/fetchFailureContext.js";
+import {
+  buildFetchFailureContext,
+  mergeCaptureContext,
+} from "../utilities/fetchFailureContext.js";
 
 const MAX_REDIRECTS = 3;
 const MAX_SAFE_FETCH_ATTEMPTS = 2;
@@ -356,46 +359,6 @@ export default class Api {
     return sampleRate >= 1 || Math.random() < sampleRate;
   }
 
-  mergeContexts(contexts = {}, overrideContexts = {}) {
-    return Object.fromEntries(
-      Object.entries({
-        ...contexts,
-        ...overrideContexts,
-      }).map(([key, value]) => {
-        if (
-          contexts[key] != null &&
-          value != null &&
-          typeof contexts[key] === "object" &&
-          typeof value === "object" &&
-          Array.isArray(contexts[key]) === false &&
-          Array.isArray(value) === false
-        ) {
-          return [key, { ...contexts[key], ...value }];
-        }
-
-        return [key, value];
-      }),
-    );
-  }
-
-  mergeCaptureContext(context, overrideContext = {}) {
-    const { extra = {}, tags = {}, contexts = {}, ...rest } = overrideContext;
-
-    return {
-      ...context,
-      ...rest,
-      extra: {
-        ...context.extra,
-        ...extra,
-      },
-      tags: {
-        ...context.tags,
-        ...tags,
-      },
-      contexts: this.mergeContexts(context.contexts, contexts),
-    };
-  }
-
   async fetchResult(url, {
     method = "GET",
     setLoader,
@@ -467,7 +430,7 @@ export default class Api {
               timedOut: abortTimeout.timedOut?.(),
             });
 
-            this.captureException(error, this.mergeCaptureContext(context, captureContext));
+            this.captureException(error, mergeCaptureContext(context, captureContext));
           }
 
           return null;

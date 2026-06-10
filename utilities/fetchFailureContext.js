@@ -4,6 +4,38 @@ export function compactObject(object) {
   );
 }
 
+export function mergeCaptureContext(baseContext = {}, overrideContext = {}) {
+  const {
+    extra: baseExtra = {},
+    tags: baseTags = {},
+    contexts: baseContexts = {},
+    ...baseRest
+  } = baseContext || {};
+  const {
+    extra = {},
+    tags = {},
+    contexts = {},
+    ...rest
+  } = overrideContext || {};
+
+  return {
+    ...baseRest,
+    ...rest,
+    extra: compactObject({
+      ...baseExtra,
+      ...extra,
+    }),
+    tags: compactObject({
+      ...baseTags,
+      ...tags,
+    }),
+    contexts: {
+      ...baseContexts,
+      ...contexts,
+    },
+  };
+}
+
 export function sanitizedUrl(urlString) {
   try {
     const url = new URL(urlString);

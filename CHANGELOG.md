@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [2026.6.10+2] - 2026-06-10
+
+
+### 🐛 Fixed
+- Remove options preflight and retry failed attempts
+
 ## [2026.6.10+1] - 2026-06-10
 
 

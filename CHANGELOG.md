@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [2026.6.10+1] - 2026-06-10
+
+
+### 🚀 Added
+- Enhance error request exception information
+
 ## [2026.6.1+2] - 2026-06-01
 
 

@@ -1046,8 +1046,102 @@ describe("api", () => {
       expect(api.setLoading.mock.calls[1][0]).toBe(false);
 
       expect(api.captureException).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledWith("failed", { extra: { url: "https://www.test.com", method: "POST", parseJson: true } });
+      expect(api.captureException).toHaveBeenCalledWith("failed", {
+        message: "Fetch failed:",
+        extra: expect.objectContaining({
+          url: "https://www.test.com",
+          method: "POST",
+          parse_json: true,
+          request_phase: "parse_json",
+          request_type: "unknown",
+          url_host: "www.test.com",
+          url_origin: "https://www.test.com",
+          url_path: "/",
+        }),
+        tags: expect.objectContaining({
+          "uptick.fetch_error": "string",
+          "uptick.fetch_host": "www.test.com",
+          "uptick.request_phase": "parse_json",
+          "uptick.request_type": "unknown",
+        }),
+        contexts: expect.objectContaining({
+          fetch_request: expect.objectContaining({
+            method: "POST",
+            parse_json: true,
+            phase: "parse_json",
+            request_type: "unknown",
+            url_host: "www.test.com",
+          }),
+        }),
+      });
     });
+
+    test("still captures fetch errors when failure context building throws", async() => {
+      const originalNavigator = global.navigator;
+      const fetchError = new Error("parse failed");
+
+      Object.defineProperty(global, "navigator", {
+        configurable: true,
+        value: {},
+      });
+      Object.defineProperty(global.navigator, "connection", {
+        configurable: true,
+        get: () => {
+          throw new Error("connection unavailable");
+        },
+      });
+
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          json: () => Promise.reject(fetchError),
+        }),
+      );
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      try {
+        const result = await api.fetchResult("https://www.test.com", {
+          method: "POST",
+          setLoader: api.setLoading
+        });
+
+        expect(result).toBeNull();
+        expect(api.setLoading).toHaveBeenCalledTimes(2);
+        expect(api.setLoading.mock.calls[0][0]).toBe(true);
+        expect(api.setLoading.mock.calls[1][0]).toBe(false);
+        expect(api.captureException).toHaveBeenCalledTimes(1);
+        expect(api.captureException).toHaveBeenCalledWith(fetchError, {
+          message: "Fetch failed:",
+          extra: expect.objectContaining({
+            url: "https://www.test.com",
+            method: "POST",
+            parse_json: true,
+            request_phase: "parse_json",
+            fetch_context_error_message: "connection unavailable",
+          }),
+          tags: expect.objectContaining({
+            "uptick.fetch_context_error": "Error",
+            "uptick.request_phase": "parse_json",
+          }),
+          contexts: expect.objectContaining({
+            fetch_context_error: expect.objectContaining({
+              message: "connection unavailable",
+            }),
+            fetch_request: expect.objectContaining({
+              method: "POST",
+              parse_json: true,
+              phase: "parse_json",
+            }),
+          }),
+        });
+      } finally {
+        Object.defineProperty(global, "navigator", {
+          configurable: true,
+          value: originalNavigator,
+        });
+      }
+    });
+
   });
 
   describe("options", () => {

@@ -931,7 +931,7 @@ describe("api", () => {
             "uptick.telemetry_event": "offer_viewed",
           },
         },
-        captureSampleRate: 0.1,
+        captureFailureSampleRate: 0.1,
       });
 
       expect(api.setLoading).toHaveBeenCalledTimes(0);
@@ -995,10 +995,11 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to find offer event link from offer.");
     });
 
-    test("silently ignores unexpected telemetry rejections", async () => {
+    test("samples unexpected telemetry rejections without blocking", async () => {
       const api = createApi();
       const fetchError = new Error("Network failure");
       jest.spyOn(api, "fetchResult").mockRejectedValue(fetchError);
+      const random = jest.spyOn(Math, "random").mockReturnValue(0.05);
 
       const offerResult = {
         links: {
@@ -1006,9 +1007,48 @@ describe("api", () => {
         }
       };
 
-      await api.offerViewedEvent(offerResult);
+      try {
+        await api.offerViewedEvent(offerResult);
 
-      expect(api.captureException).toHaveBeenCalledTimes(0);
+        expect(api.captureException).toHaveBeenCalledTimes(1);
+        expect(api.captureException).toHaveBeenCalledWith(fetchError, {
+          message: "Offer viewed event failed:",
+          level: "warning",
+          extra: {
+            non_blocking: true,
+            telemetry_event: "offer_viewed",
+          },
+          tags: {
+            "uptick.non_blocking": "true",
+            "uptick.request_importance": "telemetry",
+            "uptick.telemetry_event": "offer_viewed",
+          },
+        });
+      } finally {
+        random.mockRestore();
+      }
+    });
+
+    test("samples out offer viewed fetch failures", async() => {
+      global.fetch = jest.fn().mockRejectedValue(new TypeError("Sampled out"));
+      const random = jest.spyOn(Math, "random").mockReturnValue(0.5);
+
+      const api = createApi();
+      const offerResult = {
+        links: {
+          offer_event: "https://api.uptick.com/v1/places/place-id/flows/flow-id/events?eid=event-id"
+        }
+      };
+
+      try {
+        const result = await api.offerViewedEvent(offerResult);
+
+        expect(result).toBeNull();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(api.captureException).toHaveBeenCalledTimes(0);
+      } finally {
+        random.mockRestore();
+      }
     });
   });
 
@@ -1036,6 +1076,24 @@ describe("api", () => {
       expect(api.setLoading.mock.calls[0][0]).toBe(true);
       expect(api.setLoading.mock.calls[1][0]).toBe(false);
 
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+    });
+
+    test("uses noop loader when setLoader is omitted", async() => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          json: () => Promise.resolve({ test: 100 }),
+        }),
+      );
+
+      const api = createApi();
+
+      const result = await api.fetchResult("https://www.test.com");
+
+      expect(result).toStrictEqual({ test: 100 });
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith(fetchUrl("https://www.test.com"), fetchOptions("GET"));
+      expect(api.setLoading).toHaveBeenCalledTimes(0);
       expect(api.captureException).toHaveBeenCalledTimes(0);
     });
 
@@ -1307,22 +1365,6 @@ describe("api", () => {
       } finally {
         jest.useRealTimers();
       }
-    });
-
-    test("skips capture when fetch failure sampling excludes the event", async() => {
-      global.fetch = jest.fn().mockRejectedValue(new TypeError("Sampled out"));
-
-      const api = createApi({ captureException: jest.fn((x) => x) });
-
-      const result = await api.fetchResult("https://www.test.com", {
-        method: "POST",
-        setLoader: api.setLoading,
-        captureSampleRate: 0,
-      });
-
-      expect(result).toBeNull();
-      expect(global.fetch).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledTimes(0);
     });
 
     test("still captures fetch errors when failure context building throws", async() => {

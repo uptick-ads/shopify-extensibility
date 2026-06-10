@@ -238,6 +238,19 @@ export default class Api {
       return;
     }
 
+    const telemetryCaptureContext = {
+      level: "warning",
+      extra: {
+        non_blocking: true,
+        telemetry_event: "offer_viewed",
+      },
+      tags: {
+        "uptick.non_blocking": "true",
+        "uptick.request_importance": "telemetry",
+        "uptick.telemetry_event": "offer_viewed",
+      },
+    };
+
     try {
       let url = new URL(offerResult.links.offer_event);
 
@@ -254,22 +267,17 @@ export default class Api {
         method: "POST",
         setLoader: this.noop,
         parseJson: false,
-        captureContext: {
-          level: "warning",
-          extra: {
-            non_blocking: true,
-            telemetry_event: "offer_viewed",
-          },
-          tags: {
-            "uptick.non_blocking": "true",
-            "uptick.request_importance": "telemetry",
-            "uptick.telemetry_event": "offer_viewed",
-          },
-        },
-        captureSampleRate: OFFER_VIEWED_CAPTURE_SAMPLE_RATE,
+        captureContext: telemetryCaptureContext,
+        captureFailureSampleRate: OFFER_VIEWED_CAPTURE_SAMPLE_RATE,
       });
-    } catch {
+    } catch (error) {
       // Offer-viewed telemetry should not affect rendering or pollute error monitoring.
+      if (this.shouldCaptureFetchFailure(OFFER_VIEWED_CAPTURE_SAMPLE_RATE)) {
+        this.captureException(error, {
+          message: "Offer viewed event failed:",
+          ...telemetryCaptureContext,
+        });
+      }
     }
   }
 
@@ -393,15 +401,16 @@ export default class Api {
     setLoader,
     parseJson = true,
     captureContext = {},
-    captureSampleRate = 1,
+    captureFailureSampleRate = 1,
     retryDelayMs = SAFE_FETCH_RETRY_DELAY_MS,
     fetchTimeoutMs = FETCH_TIMEOUT_MS,
   } = {}) {
     const normalizedMethod = (method ?? "GET").toUpperCase();
     const maxAttempts = normalizedMethod === "GET" ? MAX_SAFE_FETCH_ATTEMPTS : 1;
     const requestUrl = this.urlWithIntegrationParams(url);
+    const updateLoader = typeof setLoader === "function" ? setLoader : this.noop;
 
-    setLoader(true);
+    updateLoader(true);
 
     try {
       for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -443,7 +452,7 @@ export default class Api {
             continue;
           }
 
-          if (this.shouldCaptureFetchFailure(captureSampleRate)) {
+          if (this.shouldCaptureFetchFailure(captureFailureSampleRate)) {
             const context = buildFetchFailureContext(requestUrl, {
               method: normalizedMethod,
               parseJson,
@@ -469,7 +478,7 @@ export default class Api {
 
       return null;
     } finally {
-      setLoader(false);
+      updateLoader(false);
     }
   }
 }

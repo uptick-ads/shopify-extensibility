@@ -4,6 +4,48 @@ export function compactObject(object) {
   );
 }
 
+export function mergeCaptureContext(baseContext = {}, overrideContext = {}) {
+  const {
+    extra: baseExtra = {},
+    tags: baseTags = {},
+    contexts: baseContexts = {},
+    ...baseRest
+  } = baseContext || {};
+  const {
+    extra = {},
+    tags = {},
+    contexts = {},
+    ...rest
+  } = overrideContext || {};
+
+  return {
+    ...baseRest,
+    ...rest,
+    extra: compactObject({
+      ...baseExtra,
+      ...extra,
+    }),
+    tags: compactObject({
+      ...baseTags,
+      ...tags,
+    }),
+    contexts: {
+      ...baseContexts,
+      ...contexts,
+    },
+  };
+}
+
+export function sanitizedUrl(urlString) {
+  try {
+    const url = new URL(urlString);
+
+    return `${url.origin}${url.pathname}`;
+  } catch {
+    return undefined;
+  }
+}
+
 export function inferRequestType(url) {
   const pathParts = url.pathname.split("/").filter(Boolean);
 
@@ -35,6 +77,8 @@ export function requestUrlContext(urlString) {
       url_placement: url.searchParams.get("placement") || undefined,
       url_shop_myshopify_domain: url.searchParams.get("shop_myshopify_domain") || undefined,
       url_no_redirect: url.searchParams.get("no_redirect") || undefined,
+      url_integration_type: url.searchParams.get("integration_type") || undefined,
+      url_integration_version: url.searchParams.get("integration_version") || undefined,
     });
   } catch {
     return {
@@ -70,7 +114,19 @@ export function navigatorContext() {
 }
 
 export function buildFetchFailureContext(url, options = {}) {
-  const { method, parseJson, phase, startedAt, endedAt, error, response } = options;
+  const {
+    method,
+    parseJson,
+    phase,
+    startedAt,
+    endedAt,
+    error,
+    response,
+    attempt,
+    retried,
+    timeoutMs,
+    timedOut,
+  } = options;
   const elapsedMs = startedAt == null || endedAt == null ? undefined : endedAt - startedAt;
 
   try {
@@ -79,16 +135,20 @@ export function buildFetchFailureContext(url, options = {}) {
     const responseContext = compactObject({
       response_status: response?.status,
       response_status_text: response?.statusText,
-      response_url: response?.url,
+      response_url: sanitizedUrl(response?.url),
       response_type: response?.type,
       response_redirected: response?.redirected,
     });
     const extra = compactObject({
-      url,
+      url: sanitizedUrl(url),
       method,
       parse_json: parseJson,
       request_phase: phase,
       request_elapsed_ms: elapsedMs,
+      request_attempts: attempt,
+      request_retried: retried,
+      request_timeout_ms: timeoutMs,
+      request_timed_out: timedOut,
       ...requestContext,
       ...responseContext,
       ...errorContext(error),
@@ -104,6 +164,8 @@ export function buildFetchFailureContext(url, options = {}) {
         "uptick.fetch_host": requestContext.url_host,
         "uptick.fetch_error": error?.name || typeof error,
         "uptick.navigator_online": runtimeContext.navigator_online == null ? undefined : String(runtimeContext.navigator_online),
+        "uptick.request_retried": retried == null ? undefined : String(retried),
+        "uptick.request_timed_out": timedOut == null ? undefined : String(timedOut),
       }),
       contexts: {
         fetch_request: compactObject({
@@ -111,6 +173,10 @@ export function buildFetchFailureContext(url, options = {}) {
           parse_json: parseJson,
           phase,
           elapsed_ms: elapsedMs,
+          attempts: attempt,
+          retried,
+          timeout_ms: timeoutMs,
+          timed_out: timedOut,
           ...requestContext,
         }),
         fetch_runtime: runtimeContext,
@@ -121,17 +187,23 @@ export function buildFetchFailureContext(url, options = {}) {
     return {
       message: "Fetch failed:",
       extra: compactObject({
-        url,
+        url: sanitizedUrl(url),
         method,
         parse_json: parseJson,
         request_phase: phase,
         request_elapsed_ms: elapsedMs,
+        request_attempts: attempt,
+        request_retried: retried,
+        request_timeout_ms: timeoutMs,
+        request_timed_out: timedOut,
         fetch_context_error_name: contextError?.name,
         fetch_context_error_message: contextError?.message,
       }),
       tags: compactObject({
         "uptick.request_phase": phase,
         "uptick.fetch_context_error": contextError?.name || typeof contextError,
+        "uptick.request_retried": retried == null ? undefined : String(retried),
+        "uptick.request_timed_out": timedOut == null ? undefined : String(timedOut),
       }),
       contexts: {
         fetch_request: compactObject({
@@ -139,6 +211,10 @@ export function buildFetchFailureContext(url, options = {}) {
           parse_json: parseJson,
           phase,
           elapsed_ms: elapsedMs,
+          attempts: attempt,
+          retried,
+          timeout_ms: timeoutMs,
+          timed_out: timedOut,
         }),
         fetch_context_error: compactObject({
           name: contextError?.name,

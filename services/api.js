@@ -1,7 +1,16 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
-import { buildFetchFailureContext } from "../utilities/fetchFailureContext.js";
+import {
+  buildFetchFailureContext,
+  mergeCaptureContext,
+} from "../utilities/fetchFailureContext.js";
 
 const MAX_REDIRECTS = 3;
+const MAX_SAFE_FETCH_ATTEMPTS = 2;
+const SAFE_FETCH_RETRY_DELAY_MS = 150;
+const OFFER_VIEWED_CAPTURE_SAMPLE_RATE = 0.1;
+const FETCH_TIMEOUT_MS = 8000;
+const INTEGRATION_TYPE = "shopify_extensibility";
+const INTEGRATION_VERSION = "1.1.0";
 
 export default class Api {
   constructor({
@@ -232,6 +241,19 @@ export default class Api {
       return;
     }
 
+    const telemetryCaptureContext = {
+      level: "warning",
+      extra: {
+        non_blocking: true,
+        telemetry_event: "offer_viewed",
+      },
+      tags: {
+        "uptick.non_blocking": "true",
+        "uptick.request_importance": "telemetry",
+        "uptick.telemetry_event": "offer_viewed",
+      },
+    };
+
     try {
       let url = new URL(offerResult.links.offer_event);
 
@@ -244,9 +266,21 @@ export default class Api {
         this.addParam(url, navigator?.userAgent, "ua"); // User Agent string
       }
 
-      return await this.fetchResult(url.toString(), { method: "POST", setLoader: this.noop, parseJson: false });
+      return await this.fetchResult(url.toString(), {
+        method: "POST",
+        setLoader: this.noop,
+        parseJson: false,
+        captureContext: telemetryCaptureContext,
+        captureFailureSampleRate: OFFER_VIEWED_CAPTURE_SAMPLE_RATE,
+      });
     } catch (error) {
-      this.captureException(error, { extra: { message: "Unable to send offer viewed event" } });
+      // Offer-viewed telemetry should not affect rendering or pollute error monitoring.
+      if (this.shouldCaptureFetchFailure(OFFER_VIEWED_CAPTURE_SAMPLE_RATE)) {
+        this.captureException(error, {
+          message: "Offer viewed event failed:",
+          ...telemetryCaptureContext,
+        });
+      }
     }
   }
 
@@ -275,45 +309,139 @@ export default class Api {
     }
   }
 
-  async fetchResult(url, { method = "GET", setLoader, parseJson = true }) {
-    setLoader(true);
-    const startedAt = this.getTimeStamp();
-    let phase = "fetch";
-    let rawResult = null;
+  retryableFetchFailure({ method, phase, response }) {
+    return method === "GET" && phase === "fetch" && response == null;
+  }
+
+  wait(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  urlWithIntegrationParams(url) {
+    try {
+      const requestUrl = new URL(url);
+
+      requestUrl.searchParams.set("integration_type", INTEGRATION_TYPE);
+      requestUrl.searchParams.set("integration_version", INTEGRATION_VERSION);
+
+      return requestUrl.toString();
+    } catch {
+      return url;
+    }
+  }
+
+  createAbortTimeout(timeoutMs) {
+    if (timeoutMs == null || timeoutMs <= 0 || typeof AbortController === "undefined") {
+      return {};
+    }
+
+    const controller = new AbortController();
+    let timedOut = false;
+    const timeoutId = setTimeout(() => {
+      timedOut = true;
+      controller.abort();
+    }, timeoutMs);
+
+    return {
+      signal: controller.signal,
+      clear: () => clearTimeout(timeoutId),
+      timedOut: () => timedOut,
+    };
+  }
+
+  httpErrorFromResponse(response) {
+    const error = new Error(`Fetch failed with HTTP status ${response.status}`);
+    error.name = "HttpError";
+    return error;
+  }
+
+  shouldCaptureFetchFailure(sampleRate) {
+    return sampleRate >= 1 || Math.random() < sampleRate;
+  }
+
+  async fetchResult(url, {
+    method = "GET",
+    setLoader,
+    parseJson = true,
+    captureContext = {},
+    captureFailureSampleRate = 1,
+    retryDelayMs = SAFE_FETCH_RETRY_DELAY_MS,
+    fetchTimeoutMs = FETCH_TIMEOUT_MS,
+  } = {}) {
+    const normalizedMethod = (method ?? "GET").toUpperCase();
+    const maxAttempts = normalizedMethod === "GET" ? MAX_SAFE_FETCH_ATTEMPTS : 1;
+    const requestUrl = this.urlWithIntegrationParams(url);
+    const updateLoader = typeof setLoader === "function" ? setLoader : this.noop;
+
+    updateLoader(true);
 
     try {
-      rawResult = await fetch(url, {
-        method: method ?? "GET",
-        redirect: "follow",
-        cache: "no-cache",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.1.0"
-        }
-      });
+      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+        const startedAt = this.getTimeStamp();
+        let phase = "fetch";
+        let rawResult = null;
+        let abortTimeout = {};
 
-      if (parseJson) {
-        phase = "parse_json";
-        return await rawResult.json();
+        try {
+          abortTimeout = this.createAbortTimeout(fetchTimeoutMs);
+          rawResult = await fetch(requestUrl, {
+            method: normalizedMethod,
+            redirect: "follow",
+            cache: "no-cache",
+            signal: abortTimeout.signal,
+            headers: {
+              Accept: "application/json",
+            }
+          });
+
+          if (rawResult?.ok === false) {
+            phase = "http_status";
+            throw this.httpErrorFromResponse(rawResult);
+          }
+
+          if (parseJson) {
+            phase = "parse_json";
+            return await rawResult.json();
+          }
+
+          phase = "read_body";
+          return rawResult.body;
+        } catch (error) {
+          if (
+            attempt < maxAttempts &&
+            this.retryableFetchFailure({ method: normalizedMethod, phase, response: rawResult })
+          ) {
+            await this.wait(retryDelayMs);
+            continue;
+          }
+
+          if (this.shouldCaptureFetchFailure(captureFailureSampleRate)) {
+            const context = buildFetchFailureContext(requestUrl, {
+              method: normalizedMethod,
+              parseJson,
+              phase,
+              startedAt,
+              endedAt: this.getTimeStamp(),
+              error,
+              response: rawResult,
+              attempt,
+              retried: attempt > 1,
+              timeoutMs: fetchTimeoutMs,
+              timedOut: abortTimeout.timedOut?.(),
+            });
+
+            this.captureException(error, mergeCaptureContext(context, captureContext));
+          }
+
+          return null;
+        } finally {
+          abortTimeout.clear?.();
+        }
       }
 
-      phase = "read_body";
-      return rawResult.body;
-    } catch (error) {
-      this.captureException(error, buildFetchFailureContext(url, {
-        method,
-        parseJson,
-        phase,
-        startedAt,
-        endedAt: this.getTimeStamp(),
-        error,
-        response: rawResult,
-      }));
       return null;
     } finally {
-      setLoader(false);
+      updateLoader(false);
     }
   }
 }

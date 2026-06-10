@@ -8,6 +8,7 @@ import {
   buildFetchFailureContext,
   errorContext,
   inferRequestType,
+  mergeCaptureContext,
   navigatorContext,
   requestUrlContext,
 } from "./fetchFailureContext";
@@ -16,6 +17,76 @@ const originalNavigator = global.navigator;
 
 afterEach(() => {
   global.navigator = originalNavigator;
+});
+
+describe("mergeCaptureContext", () => {
+  test("merges top-level context and Sentry data bags", () => {
+    expect(mergeCaptureContext(
+      {
+        message: "Fetch failed:",
+        extra: {
+          method: "GET",
+          request_type: "offer",
+        },
+        tags: {
+          "uptick.request_type": "offer",
+        },
+        contexts: {
+          fetch_request: {
+            method: "GET",
+          },
+        },
+      },
+      {
+        level: "warning",
+        extra: {
+          non_blocking: true,
+        },
+        tags: {
+          "uptick.request_importance": "telemetry",
+        },
+      },
+    )).toStrictEqual({
+      message: "Fetch failed:",
+      level: "warning",
+      extra: {
+        method: "GET",
+        request_type: "offer",
+        non_blocking: true,
+      },
+      tags: {
+        "uptick.request_type": "offer",
+        "uptick.request_importance": "telemetry",
+      },
+      contexts: {
+        fetch_request: {
+          method: "GET",
+        },
+      },
+    });
+  });
+
+  test("replaces named contexts instead of deep merging them", () => {
+    expect(mergeCaptureContext(
+      {
+        contexts: {
+          fetch_request: {
+            method: "GET",
+            phase: "fetch",
+          },
+        },
+      },
+      {
+        contexts: {
+          fetch_request: {
+            purpose: "override",
+          },
+        },
+      },
+    ).contexts.fetch_request).toStrictEqual({
+      purpose: "override",
+    });
+  });
 });
 
 describe("inferRequestType", () => {
@@ -98,33 +169,56 @@ describe("buildFetchFailureContext", () => {
   test("builds capture context for fetch failures", () => {
     delete global.navigator;
 
-    const context = buildFetchFailureContext("https://www.test.com", {
-      method: "POST",
-      parseJson: true,
-      phase: "parse_json",
-      startedAt: 1000,
-      endedAt: 1250,
-      error: "failed",
-    });
+    const context = buildFetchFailureContext(
+      "https://www.test.com/offers/new?first_name=Hidden&zip=12345&integration_type=shopify_extensibility&integration_version=1.1.0",
+      {
+        method: "POST",
+        parseJson: true,
+        phase: "parse_json",
+        startedAt: 1000,
+        endedAt: 1250,
+        error: "failed",
+        response: {
+          status: 500,
+          statusText: "Server Error",
+          url: "https://www.test.com/offers/new?first_name=Hidden&zip=12345",
+        },
+        attempt: 2,
+        retried: true,
+        timeoutMs: 8000,
+        timedOut: false,
+      },
+    );
 
     expect(context).toStrictEqual({
       message: "Fetch failed:",
       extra: {
-        url: "https://www.test.com",
+        url: "https://www.test.com/offers/new",
         method: "POST",
         parse_json: true,
         request_phase: "parse_json",
         request_elapsed_ms: 250,
-        request_type: "unknown",
+        request_attempts: 2,
+        request_retried: true,
+        request_timeout_ms: 8000,
+        request_timed_out: false,
+        request_type: "offer",
+        response_status: 500,
+        response_status_text: "Server Error",
+        response_url: "https://www.test.com/offers/new",
         url_origin: "https://www.test.com",
         url_host: "www.test.com",
-        url_path: "/",
+        url_path: "/offers/new",
+        url_integration_type: "shopify_extensibility",
+        url_integration_version: "1.1.0",
       },
       tags: {
-        "uptick.request_type": "unknown",
+        "uptick.request_type": "offer",
         "uptick.request_phase": "parse_json",
         "uptick.fetch_host": "www.test.com",
         "uptick.fetch_error": "string",
+        "uptick.request_retried": "true",
+        "uptick.request_timed_out": "false",
       },
       contexts: {
         fetch_request: {
@@ -132,14 +226,26 @@ describe("buildFetchFailureContext", () => {
           parse_json: true,
           phase: "parse_json",
           elapsed_ms: 250,
-          request_type: "unknown",
+          attempts: 2,
+          retried: true,
+          timeout_ms: 8000,
+          timed_out: false,
+          request_type: "offer",
           url_origin: "https://www.test.com",
           url_host: "www.test.com",
-          url_path: "/",
+          url_path: "/offers/new",
+          url_integration_type: "shopify_extensibility",
+          url_integration_version: "1.1.0",
         },
         fetch_runtime: {},
-        fetch_response: {},
+        fetch_response: {
+          response_status: 500,
+          response_status_text: "Server Error",
+          response_url: "https://www.test.com/offers/new",
+        },
       },
     });
+    expect(JSON.stringify(context)).not.toContain("Hidden");
+    expect(JSON.stringify(context)).not.toContain("12345");
   });
 });

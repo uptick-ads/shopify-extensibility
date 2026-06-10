@@ -9,6 +9,27 @@ import Api from "./api";
 import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
+const integrationType = "shopify_extensibility";
+const integrationVersion = "1.1.0";
+
+function fetchUrl(url) {
+  const requestUrl = new URL(url);
+  requestUrl.searchParams.set("integration_type", integrationType);
+  requestUrl.searchParams.set("integration_version", integrationVersion);
+  return requestUrl.toString();
+}
+
+function fetchOptions(method) {
+  return {
+    method,
+    redirect: "follow",
+    cache: "no-cache",
+    signal: expect.any(Object),
+    headers: {
+      Accept: "application/json",
+    }
+  };
+}
 
 function createApi(includeShopApi = true, { integrationId = null, includeShippingAddress = true, options = {} } = {}) {
   const shopApi = {
@@ -894,7 +915,24 @@ describe("api", () => {
       url.searchParams.append("ua", "Chrome");
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(url.toString(), { method: "POST", setLoader: api.noop, parseJson: false });
+      expect(api.fetchResult).toHaveBeenCalledWith(url.toString(), {
+        method: "POST",
+        setLoader: api.noop,
+        parseJson: false,
+        captureContext: {
+          level: "warning",
+          extra: {
+            non_blocking: true,
+            telemetry_event: "offer_viewed",
+          },
+          tags: {
+            "uptick.non_blocking": "true",
+            "uptick.request_importance": "telemetry",
+            "uptick.telemetry_event": "offer_viewed",
+          },
+        },
+        captureSampleRate: 0.1,
+      });
 
       expect(api.setLoading).toHaveBeenCalledTimes(0);
       expect(api.captureException).toHaveBeenCalledTimes(0);
@@ -957,7 +995,7 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to find offer event link from offer.");
     });
 
-    test("catches and reports fetch errors", async () => {
+    test("silently ignores unexpected telemetry rejections", async () => {
       const api = createApi();
       const fetchError = new Error("Network failure");
       jest.spyOn(api, "fetchResult").mockRejectedValue(fetchError);
@@ -970,8 +1008,7 @@ describe("api", () => {
 
       await api.offerViewedEvent(offerResult);
 
-      expect(api.captureException).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledWith(fetchError, { extra: { message: "Unable to send offer viewed event" } });
+      expect(api.captureException).toHaveBeenCalledTimes(0);
     });
   });
 
@@ -993,17 +1030,7 @@ describe("api", () => {
       expect(result).toStrictEqual({ test: 100 });
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
-      expect(global.fetch).toHaveBeenCalledWith("https://www.test.com", {
-        method: "POST",
-        redirect: "follow",
-        cache: "no-cache",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.1.0"
-        }
-      });
+      expect(global.fetch).toHaveBeenCalledWith(fetchUrl("https://www.test.com"), fetchOptions("POST"));
 
       expect(api.setLoading).toHaveBeenCalledTimes(2);
       expect(api.setLoading.mock.calls[0][0]).toBe(true);
@@ -1029,17 +1056,7 @@ describe("api", () => {
       expect(result).toBeNull();
 
       expect(global.fetch).toHaveBeenCalledTimes(1);
-      expect(global.fetch).toHaveBeenCalledWith("https://www.test.com", {
-        method: "POST",
-        redirect: "follow",
-        cache: "no-cache",
-        headers: {
-          Accept: "application/json",
-          "Content-Type": "application/json",
-          "X-Uptick-Integration-Type": "shopify_extensibility",
-          "X-Uptick-Integration-Version": "1.1.0"
-        }
-      });
+      expect(global.fetch).toHaveBeenCalledWith(fetchUrl("https://www.test.com"), fetchOptions("POST"));
 
       expect(api.setLoading).toHaveBeenCalledTimes(2);
       expect(api.setLoading.mock.calls[0][0]).toBe(true);
@@ -1049,11 +1066,15 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledWith("failed", {
         message: "Fetch failed:",
         extra: expect.objectContaining({
-          url: "https://www.test.com",
+          url: "https://www.test.com/",
           method: "POST",
           parse_json: true,
           request_phase: "parse_json",
+          request_attempts: 1,
+          request_retried: false,
           request_type: "unknown",
+          url_integration_type: integrationType,
+          url_integration_version: integrationVersion,
           url_host: "www.test.com",
           url_origin: "https://www.test.com",
           url_path: "/",
@@ -1061,6 +1082,7 @@ describe("api", () => {
         tags: expect.objectContaining({
           "uptick.fetch_error": "string",
           "uptick.fetch_host": "www.test.com",
+          "uptick.request_retried": "false",
           "uptick.request_phase": "parse_json",
           "uptick.request_type": "unknown",
         }),
@@ -1069,11 +1091,238 @@ describe("api", () => {
             method: "POST",
             parse_json: true,
             phase: "parse_json",
+            attempts: 1,
+            retried: false,
             request_type: "unknown",
+            url_integration_type: integrationType,
+            url_integration_version: integrationVersion,
             url_host: "www.test.com",
           }),
         }),
       });
+    });
+
+    test("retries GET fetch failures without capturing when retry succeeds", async() => {
+      global.fetch = jest.fn()
+        .mockRejectedValueOnce(new TypeError("Load failed"))
+        .mockResolvedValueOnce({
+          json: () => Promise.resolve({ test: 100 }),
+        });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const result = await api.fetchResult("https://www.test.com", {
+        setLoader: api.setLoading,
+        retryDelayMs: 0,
+      });
+
+      expect(result).toStrictEqual({ test: 100 });
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(global.fetch).toHaveBeenNthCalledWith(1, fetchUrl("https://www.test.com"), fetchOptions("GET"));
+      expect(global.fetch).toHaveBeenNthCalledWith(2, fetchUrl("https://www.test.com"), fetchOptions("GET"));
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.setLoading.mock.calls[0][0]).toBe(true);
+      expect(api.setLoading.mock.calls[1][0]).toBe(false);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+    });
+
+    test("captures GET fetch failures only after the retry fails", async() => {
+      const firstError = new TypeError("Load failed");
+      const finalError = new TypeError("Load failed again");
+      global.fetch = jest.fn()
+        .mockRejectedValueOnce(firstError)
+        .mockRejectedValueOnce(finalError);
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const result = await api.fetchResult("https://www.test.com", {
+        setLoader: api.setLoading,
+        retryDelayMs: 0,
+      });
+
+      expect(result).toBeNull();
+      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.setLoading.mock.calls[0][0]).toBe(true);
+      expect(api.setLoading.mock.calls[1][0]).toBe(false);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledWith(finalError, {
+        message: "Fetch failed:",
+        extra: expect.objectContaining({
+          url: "https://www.test.com/",
+          method: "GET",
+          parse_json: true,
+          request_phase: "fetch",
+          request_attempts: 2,
+          request_retried: true,
+          request_type: "unknown",
+          url_integration_type: integrationType,
+          url_integration_version: integrationVersion,
+          url_host: "www.test.com",
+        }),
+        tags: expect.objectContaining({
+          "uptick.fetch_error": "TypeError",
+          "uptick.fetch_host": "www.test.com",
+          "uptick.request_phase": "fetch",
+          "uptick.request_retried": "true",
+          "uptick.request_type": "unknown",
+        }),
+        contexts: expect.objectContaining({
+          fetch_request: expect.objectContaining({
+            method: "GET",
+            parse_json: true,
+            phase: "fetch",
+            attempts: 2,
+            retried: true,
+            request_type: "unknown",
+            url_integration_type: integrationType,
+            url_integration_version: integrationVersion,
+            url_host: "www.test.com",
+          }),
+        }),
+      });
+    });
+
+    test("merges custom capture context into fetch failures", async() => {
+      const error = new TypeError("Telemetry fetch failed");
+      global.fetch = jest.fn().mockRejectedValue(error);
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const result = await api.fetchResult("https://www.test.com/events", {
+        method: "POST",
+        setLoader: api.setLoading,
+        captureContext: {
+          level: "warning",
+          extra: {
+            non_blocking: true,
+            telemetry_event: "offer_viewed",
+          },
+          tags: {
+            "uptick.non_blocking": "true",
+            "uptick.request_importance": "telemetry",
+            "uptick.telemetry_event": "offer_viewed",
+          },
+        },
+      });
+
+      expect(result).toBeNull();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledWith(error, expect.objectContaining({
+        level: "warning",
+        extra: expect.objectContaining({
+          non_blocking: true,
+          telemetry_event: "offer_viewed",
+          request_type: "offer_event",
+        }),
+        tags: expect.objectContaining({
+          "uptick.non_blocking": "true",
+          "uptick.request_importance": "telemetry",
+          "uptick.telemetry_event": "offer_viewed",
+          "uptick.request_type": "offer_event",
+        }),
+      }));
+    });
+
+    test("captures non-ok HTTP responses without parsing the body", async() => {
+      const json = jest.fn();
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 500,
+        statusText: "Server Error",
+        url: "https://www.test.com/events?first_name=Hidden&zip=12345",
+        type: "cors",
+        redirected: false,
+        json,
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const result = await api.fetchResult("https://www.test.com/events?first_name=Hidden&zip=12345", {
+        setLoader: api.setLoading,
+      });
+
+      expect(result).toBeNull();
+      expect(json).toHaveBeenCalledTimes(0);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+
+      const [error, context] = api.captureException.mock.calls[0];
+      expect(error.name).toBe("HttpError");
+      expect(error.message).toBe("Fetch failed with HTTP status 500");
+      expect(context).toStrictEqual(expect.objectContaining({
+        message: "Fetch failed:",
+        extra: expect.objectContaining({
+          url: "https://www.test.com/events",
+          response_status: 500,
+          response_status_text: "Server Error",
+          response_url: "https://www.test.com/events",
+          request_phase: "http_status",
+          request_type: "offer_event",
+        }),
+        tags: expect.objectContaining({
+          "uptick.fetch_error": "HttpError",
+          "uptick.request_phase": "http_status",
+          "uptick.request_type": "offer_event",
+        }),
+      }));
+      expect(JSON.stringify(context)).not.toContain("Hidden");
+      expect(JSON.stringify(context)).not.toContain("12345");
+    });
+
+    test("passes an abort signal to fetch so stalled requests can time out", async() => {
+      global.fetch = jest.fn(() =>
+        Promise.resolve({
+          json: () => Promise.resolve({ test: 100 }),
+        }),
+      );
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      await api.fetchResult("https://www.test.com", {
+        setLoader: api.setLoading,
+        fetchTimeoutMs: 50,
+      });
+
+      expect(global.fetch).toHaveBeenCalledWith(fetchUrl("https://www.test.com"), fetchOptions("GET"));
+      const fetchOptionsArg = global.fetch.mock.calls[0][1];
+      expect(fetchOptionsArg.signal.aborted).toBe(false);
+    });
+
+    test("marks abort timeout state when the timeout fires", () => {
+      jest.useFakeTimers();
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      try {
+        const abortTimeout = api.createAbortTimeout(50);
+
+        expect(abortTimeout.signal.aborted).toBe(false);
+        expect(abortTimeout.timedOut()).toBe(false);
+
+        jest.advanceTimersByTime(50);
+
+        expect(abortTimeout.signal.aborted).toBe(true);
+        expect(abortTimeout.timedOut()).toBe(true);
+        abortTimeout.clear();
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("skips capture when fetch failure sampling excludes the event", async() => {
+      global.fetch = jest.fn().mockRejectedValue(new TypeError("Sampled out"));
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const result = await api.fetchResult("https://www.test.com", {
+        method: "POST",
+        setLoader: api.setLoading,
+        captureSampleRate: 0,
+      });
+
+      expect(result).toBeNull();
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
     });
 
     test("still captures fetch errors when failure context building throws", async() => {
@@ -1113,10 +1362,12 @@ describe("api", () => {
         expect(api.captureException).toHaveBeenCalledWith(fetchError, {
           message: "Fetch failed:",
           extra: expect.objectContaining({
-            url: "https://www.test.com",
+            url: "https://www.test.com/",
             method: "POST",
             parse_json: true,
             request_phase: "parse_json",
+            request_attempts: 1,
+            request_retried: false,
             fetch_context_error_message: "connection unavailable",
           }),
           tags: expect.objectContaining({
@@ -1131,6 +1382,8 @@ describe("api", () => {
               method: "POST",
               parse_json: true,
               phase: "parse_json",
+              attempts: 1,
+              retried: false,
             }),
           }),
         });

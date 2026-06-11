@@ -95,6 +95,65 @@ export function errorContext(error) {
   });
 }
 
+export function documentVisibilityContext() {
+  if (typeof document === "undefined") {
+    return {
+      document_visibility_source: "no_document",
+      document_visibility_state: "unsupported",
+      document_hidden: "unsupported",
+    };
+  }
+
+  if (document.visibilityState != null) {
+    return {
+      document_visibility_source: "visibility_state",
+      document_visibility_state: document.visibilityState,
+      document_hidden: document.hidden ?? "unsupported",
+    };
+  }
+
+  if (document.hidden != null) {
+    return {
+      document_visibility_source: "hidden_flag",
+      document_visibility_state: "unsupported",
+      document_hidden: document.hidden,
+    };
+  }
+
+  return {
+    document_visibility_source: "unsupported",
+    document_visibility_state: "unsupported",
+    document_hidden: "unsupported",
+  };
+}
+
+export function documentIsVisible(visibilityContext = documentVisibilityContext()) {
+  if (visibilityContext.document_visibility_source === "visibility_state") {
+    return visibilityContext.document_visibility_state === "visible";
+  }
+
+  if (visibilityContext.document_visibility_source === "hidden_flag") {
+    return visibilityContext.document_hidden === false;
+  }
+
+  return undefined;
+}
+
+export function isLikelyFetchTeardown({ phase, response, timedOut, visibilityContext } = {}) {
+  const visible = documentIsVisible(visibilityContext);
+
+  if (visible == null) {
+    return undefined;
+  }
+
+  return (
+    phase === "fetch" &&
+    response == null &&
+    timedOut !== true &&
+    visible === false
+  );
+}
+
 export function navigatorContext() {
   if (typeof navigator === "undefined") {
     return {};
@@ -122,16 +181,17 @@ export function buildFetchFailureContext(url, options = {}) {
     endedAt,
     error,
     response,
-    attempt,
-    retried,
     timeoutMs,
     timedOut,
+    visibilityContext = documentVisibilityContext(),
+    likelyTeardown,
   } = options;
   const elapsedMs = startedAt == null || endedAt == null ? undefined : endedAt - startedAt;
 
   try {
     const requestContext = requestUrlContext(url);
     const runtimeContext = navigatorContext();
+    const documentVisible = documentIsVisible(visibilityContext);
     const responseContext = compactObject({
       response_status: response?.status,
       response_status_text: response?.statusText,
@@ -145,14 +205,15 @@ export function buildFetchFailureContext(url, options = {}) {
       parse_json: parseJson,
       request_phase: phase,
       request_elapsed_ms: elapsedMs,
-      request_attempts: attempt,
-      request_retried: retried,
       request_timeout_ms: timeoutMs,
       request_timed_out: timedOut,
+      request_document_visible: documentVisible,
+      request_likely_teardown: likelyTeardown,
       ...requestContext,
       ...responseContext,
       ...errorContext(error),
       ...runtimeContext,
+      ...visibilityContext,
     });
 
     return {
@@ -164,8 +225,11 @@ export function buildFetchFailureContext(url, options = {}) {
         "uptick.fetch_host": requestContext.url_host,
         "uptick.fetch_error": error?.name || typeof error,
         "uptick.navigator_online": runtimeContext.navigator_online == null ? undefined : String(runtimeContext.navigator_online),
-        "uptick.request_retried": retried == null ? undefined : String(retried),
         "uptick.request_timed_out": timedOut == null ? undefined : String(timedOut),
+        "uptick.document_visibility_source": visibilityContext.document_visibility_source,
+        "uptick.document_visibility_state": visibilityContext.document_visibility_state,
+        "uptick.request_document_visible": documentVisible == null ? undefined : String(documentVisible),
+        "uptick.request_likely_teardown": likelyTeardown == null ? undefined : String(likelyTeardown),
       }),
       contexts: {
         fetch_request: compactObject({
@@ -173,13 +237,16 @@ export function buildFetchFailureContext(url, options = {}) {
           parse_json: parseJson,
           phase,
           elapsed_ms: elapsedMs,
-          attempts: attempt,
-          retried,
           timeout_ms: timeoutMs,
           timed_out: timedOut,
+          document_visible: documentVisible,
+          likely_teardown: likelyTeardown,
           ...requestContext,
         }),
-        fetch_runtime: runtimeContext,
+        fetch_runtime: {
+          ...runtimeContext,
+          ...visibilityContext,
+        },
         fetch_response: responseContext,
       },
     };
@@ -192,18 +259,20 @@ export function buildFetchFailureContext(url, options = {}) {
         parse_json: parseJson,
         request_phase: phase,
         request_elapsed_ms: elapsedMs,
-        request_attempts: attempt,
-        request_retried: retried,
         request_timeout_ms: timeoutMs,
         request_timed_out: timedOut,
+        request_likely_teardown: likelyTeardown,
+        ...visibilityContext,
         fetch_context_error_name: contextError?.name,
         fetch_context_error_message: contextError?.message,
       }),
       tags: compactObject({
         "uptick.request_phase": phase,
         "uptick.fetch_context_error": contextError?.name || typeof contextError,
-        "uptick.request_retried": retried == null ? undefined : String(retried),
         "uptick.request_timed_out": timedOut == null ? undefined : String(timedOut),
+        "uptick.document_visibility_source": visibilityContext.document_visibility_source,
+        "uptick.document_visibility_state": visibilityContext.document_visibility_state,
+        "uptick.request_likely_teardown": likelyTeardown == null ? undefined : String(likelyTeardown),
       }),
       contexts: {
         fetch_request: compactObject({
@@ -211,10 +280,12 @@ export function buildFetchFailureContext(url, options = {}) {
           parse_json: parseJson,
           phase,
           elapsed_ms: elapsedMs,
-          attempts: attempt,
-          retried,
           timeout_ms: timeoutMs,
           timed_out: timedOut,
+          likely_teardown: likelyTeardown,
+        }),
+        fetch_runtime: compactObject({
+          ...visibilityContext,
         }),
         fetch_context_error: compactObject({
           name: contextError?.name,

@@ -6,14 +6,62 @@ import {
 } from "@jest/globals";
 import {
   buildFetchFailureContext,
+  documentIsVisible,
+  documentVisibilityContext,
   errorContext,
   inferRequestType,
+  isLikelyFetchTeardown,
   mergeCaptureContext,
   navigatorContext,
   requestUrlContext,
 } from "./fetchFailureContext";
 
 const originalNavigator = global.navigator;
+
+function setDocumentVisibility({ visibilityState, hidden }) {
+  const originalDocument = global.document;
+  const hadDocument = typeof global.document !== "undefined";
+
+  if (!hadDocument) {
+    Object.defineProperty(global, "document", {
+      configurable: true,
+      value: {},
+    });
+  }
+
+  const visibilityDescriptor = Object.getOwnPropertyDescriptor(global.document, "visibilityState");
+  const hiddenDescriptor = Object.getOwnPropertyDescriptor(global.document, "hidden");
+
+  Object.defineProperty(global.document, "visibilityState", {
+    configurable: true,
+    value: visibilityState,
+  });
+  Object.defineProperty(global.document, "hidden", {
+    configurable: true,
+    value: hidden,
+  });
+
+  return () => {
+    if (!hadDocument) {
+      delete global.document;
+      return;
+    }
+
+    global.document = originalDocument;
+
+    if (visibilityDescriptor == null) {
+      delete global.document.visibilityState;
+    } else {
+      Object.defineProperty(global.document, "visibilityState", visibilityDescriptor);
+    }
+
+    if (hiddenDescriptor == null) {
+      delete global.document.hidden;
+    } else {
+      Object.defineProperty(global.document, "hidden", hiddenDescriptor);
+    }
+  };
+}
 
 afterEach(() => {
   global.navigator = originalNavigator;
@@ -133,6 +181,103 @@ describe("errorContext", () => {
   });
 });
 
+describe("documentVisibilityContext", () => {
+  test("records no_document when document is unavailable", () => {
+    const originalDocument = global.document;
+
+    try {
+      delete global.document;
+
+      expect(documentVisibilityContext()).toStrictEqual({
+        document_visibility_source: "no_document",
+        document_visibility_state: "unsupported",
+        document_hidden: "unsupported",
+      });
+      expect(documentIsVisible(documentVisibilityContext())).toBeUndefined();
+    } finally {
+      if (originalDocument != null) {
+        global.document = originalDocument;
+      }
+    }
+  });
+
+  test("reads the current document visibility", () => {
+    const restore = setDocumentVisibility({
+      visibilityState: "hidden",
+      hidden: true,
+    });
+
+    try {
+      expect(documentVisibilityContext()).toStrictEqual({
+        document_visibility_source: "visibility_state",
+        document_visibility_state: "hidden",
+        document_hidden: true,
+      });
+      expect(documentIsVisible(documentVisibilityContext())).toBe(false);
+    } finally {
+      restore();
+    }
+  });
+
+  test("records unsupported when the document lacks visibility APIs", () => {
+    const originalDocument = global.document;
+
+    try {
+      Object.defineProperty(global, "document", {
+        configurable: true,
+        value: {},
+      });
+
+      expect(documentVisibilityContext()).toStrictEqual({
+        document_visibility_source: "unsupported",
+        document_visibility_state: "unsupported",
+        document_hidden: "unsupported",
+      });
+      expect(documentIsVisible(documentVisibilityContext())).toBeUndefined();
+    } finally {
+      if (originalDocument == null) {
+        delete global.document;
+      } else {
+        global.document = originalDocument;
+      }
+    }
+  });
+});
+
+describe("isLikelyFetchTeardown", () => {
+  test("classifies hidden pre-response fetch failures as likely teardown", () => {
+    expect(isLikelyFetchTeardown({
+      phase: "fetch",
+      response: null,
+      timedOut: false,
+      visibilityContext: {
+        document_visibility_source: "visibility_state",
+        document_visibility_state: "hidden",
+        document_hidden: true,
+      },
+    })).toBe(true);
+  });
+
+  test("does not classify visible or unknown failures as teardown", () => {
+    expect(isLikelyFetchTeardown({
+      phase: "fetch",
+      response: null,
+      timedOut: false,
+      visibilityContext: {
+        document_visibility_source: "visibility_state",
+        document_visibility_state: "visible",
+        document_hidden: false,
+      },
+    })).toBe(false);
+    expect(isLikelyFetchTeardown({
+      phase: "fetch",
+      response: null,
+      timedOut: false,
+      visibilityContext: {},
+    })).toBeUndefined();
+  });
+});
+
 describe("navigatorContext", () => {
   test("returns an empty object when navigator is unavailable", () => {
     delete global.navigator;
@@ -168,6 +313,7 @@ describe("navigatorContext", () => {
 describe("buildFetchFailureContext", () => {
   test("builds capture context for fetch failures", () => {
     delete global.navigator;
+    delete global.document;
 
     const context = buildFetchFailureContext(
       "https://www.test.com/offers/new?first_name=Hidden&zip=12345&integration_type=shopify_extensibility&integration_version=1.1.0",
@@ -183,8 +329,6 @@ describe("buildFetchFailureContext", () => {
           statusText: "Server Error",
           url: "https://www.test.com/offers/new?first_name=Hidden&zip=12345",
         },
-        attempt: 2,
-        retried: true,
         timeoutMs: 8000,
         timedOut: false,
       },
@@ -198,10 +342,11 @@ describe("buildFetchFailureContext", () => {
         parse_json: true,
         request_phase: "parse_json",
         request_elapsed_ms: 250,
-        request_attempts: 2,
-        request_retried: true,
         request_timeout_ms: 8000,
         request_timed_out: false,
+        document_visibility_source: "no_document",
+        document_visibility_state: "unsupported",
+        document_hidden: "unsupported",
         request_type: "offer",
         response_status: 500,
         response_status_text: "Server Error",
@@ -217,8 +362,9 @@ describe("buildFetchFailureContext", () => {
         "uptick.request_phase": "parse_json",
         "uptick.fetch_host": "www.test.com",
         "uptick.fetch_error": "string",
-        "uptick.request_retried": "true",
         "uptick.request_timed_out": "false",
+        "uptick.document_visibility_source": "no_document",
+        "uptick.document_visibility_state": "unsupported",
       },
       contexts: {
         fetch_request: {
@@ -226,8 +372,6 @@ describe("buildFetchFailureContext", () => {
           parse_json: true,
           phase: "parse_json",
           elapsed_ms: 250,
-          attempts: 2,
-          retried: true,
           timeout_ms: 8000,
           timed_out: false,
           request_type: "offer",
@@ -237,7 +381,11 @@ describe("buildFetchFailureContext", () => {
           url_integration_type: "shopify_extensibility",
           url_integration_version: "1.1.0",
         },
-        fetch_runtime: {},
+        fetch_runtime: {
+          document_visibility_source: "no_document",
+          document_visibility_state: "unsupported",
+          document_hidden: "unsupported",
+        },
         fetch_response: {
           response_status: 500,
           response_status_text: "Server Error",

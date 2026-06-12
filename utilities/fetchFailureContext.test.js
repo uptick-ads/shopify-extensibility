@@ -6,6 +6,7 @@ import {
 } from "@jest/globals";
 import {
   buildFetchFailureContext,
+  compactObject,
   documentIsVisible,
   documentVisibilityContext,
   errorContext,
@@ -65,6 +66,14 @@ function setDocumentVisibility({ visibilityState, hidden }) {
 
 afterEach(() => {
   global.navigator = originalNavigator;
+});
+
+describe("compactObject", () => {
+  test("treats null and non-object values as empty objects", () => {
+    expect(compactObject(null)).toStrictEqual({});
+    expect(compactObject(undefined)).toStrictEqual({});
+    expect(compactObject("not an object")).toStrictEqual({});
+  });
 });
 
 describe("mergeCaptureContext", () => {
@@ -133,6 +142,27 @@ describe("mergeCaptureContext", () => {
       },
     ).contexts.fetch_request).toStrictEqual({
       purpose: "override",
+    });
+  });
+
+  test("ignores null Sentry data bags", () => {
+    expect(mergeCaptureContext(
+      {
+        extra: null,
+        tags: null,
+        contexts: null,
+      },
+      {
+        extra: {
+          request_type: "offer",
+        },
+      },
+    )).toStrictEqual({
+      extra: {
+        request_type: "offer",
+      },
+      tags: {},
+      contexts: {},
     });
   });
 });
@@ -242,6 +272,35 @@ describe("documentVisibilityContext", () => {
       }
     }
   });
+
+  test("records unsupported when document visibility access throws", () => {
+    const originalDocument = global.document;
+
+    try {
+      Object.defineProperty(global, "document", {
+        configurable: true,
+        value: {},
+      });
+      Object.defineProperty(global.document, "visibilityState", {
+        configurable: true,
+        get() {
+          throw new Error("visibility unavailable");
+        },
+      });
+
+      expect(documentVisibilityContext()).toStrictEqual({
+        document_visibility_source: "unsupported",
+        document_visibility_state: "unsupported",
+        document_hidden: "unsupported",
+      });
+    } finally {
+      if (originalDocument == null) {
+        delete global.document;
+      } else {
+        global.document = originalDocument;
+      }
+    }
+  });
 });
 
 describe("isLikelyFetchTeardown", () => {
@@ -329,6 +388,10 @@ describe("buildFetchFailureContext", () => {
           statusText: "Server Error",
           url: "https://www.test.com/offers/new?first_name=Hidden&zip=12345",
         },
+        apiErrorContext: {
+          code: "other_error",
+          title: "Other validation error",
+        },
         timeoutMs: 8000,
         timedOut: false,
       },
@@ -351,6 +414,8 @@ describe("buildFetchFailureContext", () => {
         response_status: 500,
         response_status_text: "Server Error",
         response_url: "https://www.test.com/offers/new",
+        api_error_code: "other_error",
+        api_error_title: "Other validation error",
         url_origin: "https://www.test.com",
         url_host: "www.test.com",
         url_path: "/offers/new",
@@ -362,6 +427,7 @@ describe("buildFetchFailureContext", () => {
         "uptick.request_phase": "parse_json",
         "uptick.fetch_host": "www.test.com",
         "uptick.fetch_error": "string",
+        "uptick.api_error_code": "other_error",
         "uptick.request_timed_out": "false",
         "uptick.document_visibility_source": "no_document",
         "uptick.document_visibility_state": "unsupported",
@@ -381,6 +447,10 @@ describe("buildFetchFailureContext", () => {
           url_integration_type: "shopify_extensibility",
           url_integration_version: "1.1.0",
         },
+        fetch_api_error: {
+          api_error_code: "other_error",
+          api_error_title: "Other validation error",
+        },
         fetch_runtime: {
           document_visibility_source: "no_document",
           document_visibility_state: "unsupported",
@@ -395,5 +465,33 @@ describe("buildFetchFailureContext", () => {
     });
     expect(JSON.stringify(context)).not.toContain("Hidden");
     expect(JSON.stringify(context)).not.toContain("12345");
+  });
+
+  test("builds fallback-safe context with null optional context bags", () => {
+    const context = buildFetchFailureContext("not a url", {
+      method: "GET",
+      phase: "fetch",
+      error: new Error("failed"),
+      apiErrorContext: null,
+      visibilityContext: null,
+    });
+
+    expect(context).toStrictEqual(expect.objectContaining({
+      message: "Fetch failed:",
+      extra: expect.objectContaining({
+        request_type: "invalid_url",
+        error_name: "Error",
+        error_message: "failed",
+      }),
+      tags: expect.objectContaining({
+        "uptick.request_type": "invalid_url",
+        "uptick.request_phase": "fetch",
+      }),
+      contexts: expect.objectContaining({
+        fetch_request: expect.objectContaining({
+          request_type: "invalid_url",
+        }),
+      }),
+    }));
   });
 });

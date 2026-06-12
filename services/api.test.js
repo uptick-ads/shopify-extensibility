@@ -1532,12 +1532,105 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledTimes(0);
     });
 
-    test("captures other 422 responses after checking for disabled placement", async() => {
+    test("does not let the request timeout erase expected response codes during body parsing", async() => {
+      jest.useFakeTimers();
+      let fetchSignal;
+      const json = jest.fn(() => {
+        jest.advanceTimersByTime(51);
+
+        if (fetchSignal.aborted) {
+          return Promise.reject(new Error("body aborted"));
+        }
+
+        return Promise.resolve({
+          errors: [
+            {
+              title: "Integration placement disabled",
+              code: "placement_disabled",
+            },
+          ],
+        });
+      });
+      global.fetch = jest.fn((url, options) => {
+        fetchSignal = options.signal;
+
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          statusText: "Unprocessable Content",
+          url: "https://www.test.com/offers/new",
+          type: "cors",
+          redirected: false,
+          json,
+        });
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      try {
+        const [result, context] = await api.fetchResult("https://www.test.com/offers/new", {
+          setLoader: api.setLoading,
+          fetchTimeoutMs: 50,
+        });
+
+        expect(result).toBeNull();
+        expect(context).toStrictEqual({
+          code: "placement_disabled",
+          title: "Integration placement disabled",
+          phase: "http_status",
+          responseStatus: 422,
+        });
+        expect(json).toHaveBeenCalledTimes(1);
+        expect(fetchSignal.aborted).toBe(false);
+        expect(api.captureException).toHaveBeenCalledTimes(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("captures expected-status responses when the body does not contain a readable expected code", async() => {
+      const json = jest.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: "Unprocessable Content",
+        url: "https://www.test.com/offers/new",
+        type: "cors",
+        redirected: false,
+        json,
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const [result] = await api.fetchResult("https://www.test.com/offers/new", {
+        setLoader: api.setLoading,
+      });
+
+      expect(result).toBeNull();
+      expect(json).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+
+      const [error, context] = api.captureException.mock.calls[0];
+      expect(error.name).toBe("HttpError");
+      expect(context).toStrictEqual(expect.objectContaining({
+        extra: expect.objectContaining({
+          response_status: 422,
+          request_phase: "http_status",
+          request_type: "offer",
+        }),
+        contexts: expect.objectContaining({
+          fetch_response: expect.objectContaining({
+            response_status: 422,
+          }),
+        }),
+      }));
+    });
+
+    test("captures non-suppressed API error titles after checking for empty result codes", async() => {
       const json = jest.fn().mockResolvedValue({
         errors: [
           {
-            title: "Other validation error",
-            code: "other_error",
+            title: "Integration placement not found",
           },
         ],
       });
@@ -1566,6 +1659,7 @@ describe("api", () => {
       expect(error.message).toBe("Fetch failed with HTTP status 422");
       expect(context).toStrictEqual(expect.objectContaining({
         extra: expect.objectContaining({
+          api_error_title: "Integration placement not found",
           response_status: 422,
           response_status_text: "Unprocessable Content",
           request_phase: "http_status",
@@ -1575,6 +1669,11 @@ describe("api", () => {
           "uptick.fetch_error": "HttpError",
           "uptick.request_phase": "http_status",
           "uptick.request_type": "offer",
+        }),
+        contexts: expect.objectContaining({
+          fetch_api_error: {
+            api_error_title: "Integration placement not found",
+          },
         }),
       }));
     });

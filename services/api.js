@@ -489,6 +489,7 @@ export default class Api {
     const startedAt = this.getTimeStamp();
     let phase = "fetch";
     let rawResult = null;
+    let apiErrorContext = {};
     let abortTimeout = {};
 
     updateLoader(true);
@@ -507,14 +508,15 @@ export default class Api {
 
       if (rawResult?.ok === false) {
         phase = "http_status";
-        const responseContext = {
+        abortTimeout.clear?.();
+        apiErrorContext = {
           ...await this.fetchResultContextFromResponse(rawResult),
           phase,
           responseStatus: rawResult.status,
         };
 
-        if (this.isExpectedEmptyFetchResult(responseContext)) {
-          return [null, responseContext];
+        if (this.isExpectedEmptyFetchResult(apiErrorContext)) {
+          return [null, apiErrorContext];
         }
 
         throw this.httpErrorFromResponse(rawResult);
@@ -554,6 +556,7 @@ export default class Api {
           endedAt: this.getTimeStamp(),
           error,
           response: rawResult,
+          apiErrorContext,
           timeoutMs: fetchTimeoutMs,
           timedOut,
           visibilityContext,
@@ -570,6 +573,7 @@ export default class Api {
         likelyTeardown,
         phase,
         responseStatus: rawResult?.status,
+        ...apiErrorContext,
         timedOut,
       }];
     } finally {

@@ -1172,7 +1172,6 @@ describe("api", () => {
         "flow_expired",
       ].forEach((code) => {
         expect(api.isExpectedEmptyFetchResult({ code })).toBe(true);
-        expect(api.shouldCaptureFetchResult({ code })).toBe(false);
       });
 
       expect(api.fetchResultWarningMessage({
@@ -1181,7 +1180,6 @@ describe("api", () => {
       })).toBe("Publisher site is blocked (site_blocked).");
 
       expect(api.isExpectedEmptyFetchResult({ code: "other_error" })).toBe(false);
-      expect(api.shouldCaptureFetchResult({ code: "other_error" })).toBe(true);
       expect(api.fetchResultWarningMessage({ code: "other_error" })).toBeNull();
     });
 

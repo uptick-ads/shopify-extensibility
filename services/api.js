@@ -426,13 +426,6 @@ export default class Api {
   }
 
   /**
-   * @private Indicates whether fetchResult should capture this result as an error.
-   */
-  shouldCaptureFetchResult(context) {
-    return !this.isExpectedEmptyFetchResult(context);
-  }
-
-  /**
    * @private Returns the warning text for expected empty API responses.
    */
   fetchResultWarningMessage(context) {
@@ -459,7 +452,7 @@ export default class Api {
    * @private Handles expected empty API responses. Returns true when callers should stop.
    */
   handleFetchResultContext(context) {
-    if (this.shouldCaptureFetchResult(context)) {
+    if (!this.isExpectedEmptyFetchResult(context)) {
       return false;
     }
 
@@ -520,7 +513,7 @@ export default class Api {
           responseStatus: rawResult.status,
         };
 
-        if (!this.shouldCaptureFetchResult(responseContext)) {
+        if (this.isExpectedEmptyFetchResult(responseContext)) {
           return [null, responseContext];
         }
 

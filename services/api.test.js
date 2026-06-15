@@ -31,6 +31,65 @@ function fetchOptions(method) {
   };
 }
 
+function fetchTuple(result, context = {}) {
+  return [result, context];
+}
+
+function fetchResultOptions(options = {}) {
+  const expectedOptions = { ...options };
+
+  if (expectedOptions.method === undefined) {
+    delete expectedOptions.method;
+  }
+
+  return expect.objectContaining(expectedOptions);
+}
+
+function setDocumentVisibility({ visibilityState, hidden }) {
+  const originalDocument = global.document;
+  const hadDocument = typeof global.document !== "undefined";
+
+  if (!hadDocument) {
+    Object.defineProperty(global, "document", {
+      configurable: true,
+      value: {},
+    });
+  }
+
+  const visibilityDescriptor = Object.getOwnPropertyDescriptor(global.document, "visibilityState");
+  const hiddenDescriptor = Object.getOwnPropertyDescriptor(global.document, "hidden");
+
+  Object.defineProperty(global.document, "visibilityState", {
+    configurable: true,
+    value: visibilityState,
+  });
+  Object.defineProperty(global.document, "hidden", {
+    configurable: true,
+    value: hidden,
+  });
+
+  return () => {
+    if (!hadDocument) {
+      delete global.document;
+      return;
+    }
+
+    global.document = originalDocument;
+
+    if (visibilityDescriptor == null) {
+      delete global.document.visibilityState;
+    } else {
+      Object.defineProperty(global.document, "visibilityState", visibilityDescriptor);
+    }
+
+    if (hiddenDescriptor == null) {
+      delete global.document.hidden;
+    } else {
+      Object.defineProperty(global.document, "hidden", hiddenDescriptor);
+    }
+  };
+}
+
 function createApi(includeShopApi = true, { integrationId = null, includeShippingAddress = true, options = {} } = {}) {
   const shopApi = {
     shop: {
@@ -332,14 +391,14 @@ describe("api", () => {
 
     test("if flow result is null returns", async () => {
       const api = createApi();
-      jest.spyOn(api, "fetchResult").mockImplementation(() => null);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(null));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getInitialOffer("order_confirmation");
 
       expect(result).toBe(false);
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), fetchResultOptions({ setLoader: api.noop }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -349,20 +408,51 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to get flow. Response was null.");
     });
 
+    test("if placement is disabled returns with expected warning", async () => {
+      const api = createApi();
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: "Unprocessable Content",
+        url: generateFlowURL(api, "order_confirmation"),
+        type: "cors",
+        redirected: false,
+        json: () => Promise.resolve({
+          errors: [
+            {
+              title: "Integration placement disabled",
+              code: "placement_disabled",
+            },
+          ],
+        }),
+      });
+
+      const result = await api.getInitialOffer("order_confirmation");
+
+      expect(result).toBe(false);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(1);
+      expect(api.captureWarning).toHaveBeenCalledWith("Integration placement disabled (placement_disabled).");
+    });
+
     test("if links is empty returns", async () => {
       const returnResult = {
         links: {}
       };
 
       const api = createApi();
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getInitialOffer("order_confirmation");
 
       expect(result).toBe(false);
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), fetchResultOptions({ setLoader: api.noop }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -379,7 +469,7 @@ describe("api", () => {
           next_offer: "flow_url"
         }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
       jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
 
@@ -387,7 +477,7 @@ describe("api", () => {
       expect(result).toBe("offer");
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), fetchResultOptions({ setLoader: api.noop }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
       expect(api.getOfferBase).toHaveBeenCalledTimes(1);
@@ -407,7 +497,7 @@ describe("api", () => {
           next_offer: "flow_url"
         }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
       jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
 
@@ -415,7 +505,7 @@ describe("api", () => {
       expect(result).toBe("offer");
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation"), fetchResultOptions({ setLoader: api.noop }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
       expect(api.getOfferBase).toHaveBeenCalledTimes(1);
@@ -436,8 +526,8 @@ describe("api", () => {
         }
       };
       jest.spyOn(api, "fetchResult")
-        .mockImplementationOnce(() => flowUrlResponse)
-        .mockImplementationOnce(() => flowResult);
+        .mockImplementationOnce(() => fetchTuple(flowUrlResponse))
+        .mockImplementationOnce(() => fetchTuple(flowResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
       jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
 
@@ -445,8 +535,8 @@ describe("api", () => {
       expect(result).toBe("offer");
 
       expect(api.fetchResult).toHaveBeenCalledTimes(2);
-      expect(api.fetchResult).toHaveBeenNthCalledWith(1, generateFlowURL(api, "order_confirmation"), { method: undefined, setLoader: api.noop });
-      expect(api.fetchResult).toHaveBeenNthCalledWith(2, flowUrlResponse.flow_url, { setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenNthCalledWith(1, generateFlowURL(api, "order_confirmation"), fetchResultOptions({ setLoader: api.noop }));
+      expect(api.fetchResult).toHaveBeenNthCalledWith(2, flowUrlResponse.flow_url, fetchResultOptions({ setLoader: api.noop }));
 
       expect(api.getOfferBase).toHaveBeenCalledTimes(1);
       expect(api.getOfferBase).toHaveBeenCalledWith("offer_url", { setLoader: api.noop });
@@ -465,8 +555,8 @@ describe("api", () => {
         flow_url: "https://api.uptick.com/v1/places/place-id/flows/flow-id?param=other"
       };
       jest.spyOn(api, "fetchResult")
-        .mockImplementationOnce(() => flowUrlResponse1)
-        .mockImplementationOnce(() => flowUrlResponse2);
+        .mockImplementationOnce(() => fetchTuple(flowUrlResponse1))
+        .mockImplementationOnce(() => fetchTuple(flowUrlResponse2));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getInitialOffer("order_confirmation");
@@ -487,7 +577,7 @@ describe("api", () => {
           next_offer: "flow_url"
         }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
       jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
 
@@ -495,7 +585,7 @@ describe("api", () => {
       expect(result).toBe("offer");
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"), { method: undefined, setLoader: api.noop });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateFlowURL(api, "order_confirmation", "AAAAAAAA-BBBB-CCCC-DDDD-EEEEEEEEEEEE"), fetchResultOptions({ setLoader: api.noop }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
       expect(api.getOfferBase).toHaveBeenCalledTimes(1);
@@ -519,7 +609,7 @@ describe("api", () => {
     //   expect(api.flowURL).toBe("https://api.uptick.test/places/flows/shopify");
 
     //   // Check flow url
-    //   jest.spyOn(api, "fetchResult").mockImplementation(() => null);
+    //   jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(null));
     //   await api.getInitialOffer("order_confirmation");
 
     //   expect(api.fetchResult).toHaveBeenCalledWith("https://api.uptick.test/places/flows/shopify?api_versions%5B%5D=v1&placement=order_confirmation&shop_myshopify_domain=shop.shopify.com", { setLoader: api.setLoading });
@@ -607,14 +697,14 @@ describe("api", () => {
   describe("getOfferBase", () => {
     test("if offer is null returns", async () => {
       const api = createApi(false);
-      jest.spyOn(api, "fetchResult").mockImplementation(() => null);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(null));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
       expect(result).toBe(false);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -624,19 +714,39 @@ describe("api", () => {
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to get offer result was null.");
     });
 
-    test("if offer data is null returns", async () => {
+    test("if offer placement is disabled returns with expected warning", async () => {
       const api = createApi(false);
-      let returnResult = {
-        data: null
-      };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(null, {
+        code: "placement_disabled",
+        title: "Integration placement disabled",
+      }));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
       expect(result).toBe(false);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
+
+      expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+      expect(api.captureWarning).toHaveBeenCalledTimes(1);
+      expect(api.captureWarning).toHaveBeenCalledWith("Integration placement disabled (placement_disabled).");
+    });
+
+    test("if offer data is null returns", async () => {
+      const api = createApi(false);
+      let returnResult = {
+        data: null
+      };
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
+      jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
+
+      const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+      expect(result).toBe(false);
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -651,14 +761,14 @@ describe("api", () => {
       let returnResult = {
         data: []
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
       expect(result).toBe(false);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -674,14 +784,14 @@ describe("api", () => {
           type: "offer"
         }]
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
       expect(result).toBe(false);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(0);
 
@@ -708,8 +818,8 @@ describe("api", () => {
       };
 
       jest.spyOn(api, "fetchResult")
-        .mockImplementationOnce(() => rejectResponse)
-        .mockImplementationOnce(() => offerResult);
+        .mockImplementationOnce(() => fetchTuple(rejectResponse))
+        .mockImplementationOnce(() => fetchTuple(offerResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(rejectUrlBase, { method: "POST", setLoader: api.setLoading });
@@ -740,7 +850,7 @@ describe("api", () => {
         next_offer_url: "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?index=1"
       };
 
-      jest.spyOn(api, "fetchResult").mockImplementation(() => redirectResponse);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(redirectResponse));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -766,7 +876,7 @@ describe("api", () => {
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -775,7 +885,7 @@ describe("api", () => {
       expect(result.links).toStrictEqual(returnResult.links);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(1);
 
@@ -795,7 +905,7 @@ describe("api", () => {
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -804,7 +914,7 @@ describe("api", () => {
       expect(result.links).toStrictEqual(returnResult.links);
 
       expect(api.fetchResult).toHaveBeenCalledTimes(1);
-      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), { method: "GET", setLoader: api.setLoading });
+      expect(api.fetchResult).toHaveBeenCalledWith(generateOfferURL(api), fetchResultOptions({ method: "GET", setLoader: api.setLoading }));
 
       expect(api.offerViewedEvent).toHaveBeenCalledTimes(1);
 
@@ -824,7 +934,7 @@ describe("api", () => {
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -847,7 +957,7 @@ describe("api", () => {
         }],
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -869,7 +979,7 @@ describe("api", () => {
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
       const viewError = new Error("Event send failed");
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockRejectedValue(viewError);
 
       const result = await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -887,7 +997,7 @@ describe("api", () => {
   describe("offerViewedEvent", () => {
     test("sends event", async () => {
       const api = createApi({ captureException: jest.fn((x) => x) });
-      jest.spyOn(api, "fetchResult").mockImplementation(() => "result");
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple("result"));
       jest.spyOn(api, "getTimeStamp").mockImplementation(() => "timestamp1234");
 
       global.navigator = {
@@ -945,7 +1055,7 @@ describe("api", () => {
       };
 
       const api = createApi(true, { options });
-      jest.spyOn(api, "fetchResult").mockImplementation(() => "result");
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple("result"));
       jest.spyOn(api, "getTimeStamp").mockImplementation(() => "timestamp1234");
 
       global.navigator = {
@@ -1053,6 +1163,26 @@ describe("api", () => {
   });
 
   describe("fetchResult", () => {
+    test("identifies expected empty result codes", () => {
+      const api = createApi();
+
+      [
+        "placement_disabled",
+        "site_blocked",
+        "flow_expired",
+      ].forEach((code) => {
+        expect(api.isExpectedEmptyFetchResult({ code })).toBe(true);
+      });
+
+      expect(api.fetchResultWarningMessage({
+        code: "site_blocked",
+        title: "Publisher site is blocked",
+      })).toBe("Publisher site is blocked (site_blocked).");
+
+      expect(api.isExpectedEmptyFetchResult({ code: "other_error" })).toBe(false);
+      expect(api.fetchResultWarningMessage({ code: "other_error" })).toBeNull();
+    });
+
     test("fetches correctly", async () => {
       global.fetch = jest.fn(() =>
         Promise.resolve({
@@ -1062,7 +1192,7 @@ describe("api", () => {
 
       const api = createApi({ captureException: jest.fn((x) => x) });
 
-      const result = await api.fetchResult("https://www.test.com", {
+      const [result] = await api.fetchResult("https://www.test.com", {
         method: "POST",
         setLoader: api.setLoading
       });
@@ -1088,7 +1218,7 @@ describe("api", () => {
 
       const api = createApi();
 
-      const result = await api.fetchResult("https://www.test.com");
+      const [result] = await api.fetchResult("https://www.test.com");
 
       expect(result).toStrictEqual({ test: 100 });
       expect(global.fetch).toHaveBeenCalledTimes(1);
@@ -1106,7 +1236,7 @@ describe("api", () => {
 
       const api = createApi({ captureException: jest.fn((x) => x) });
 
-      const result = await api.fetchResult("https://www.test.com", {
+      const [result] = await api.fetchResult("https://www.test.com", {
         method: "POST",
         setLoader: api.setLoading
       });
@@ -1128,8 +1258,6 @@ describe("api", () => {
           method: "POST",
           parse_json: true,
           request_phase: "parse_json",
-          request_attempts: 1,
-          request_retried: false,
           request_type: "unknown",
           url_integration_type: integrationType,
           url_integration_version: integrationVersion,
@@ -1140,7 +1268,6 @@ describe("api", () => {
         tags: expect.objectContaining({
           "uptick.fetch_error": "string",
           "uptick.fetch_host": "www.test.com",
-          "uptick.request_retried": "false",
           "uptick.request_phase": "parse_json",
           "uptick.request_type": "unknown",
         }),
@@ -1149,8 +1276,6 @@ describe("api", () => {
             method: "POST",
             parse_json: true,
             phase: "parse_json",
-            attempts: 1,
-            retried: false,
             request_type: "unknown",
             url_integration_type: integrationType,
             url_integration_version: integrationVersion,
@@ -1160,85 +1285,123 @@ describe("api", () => {
       });
     });
 
-    test("retries GET fetch failures without capturing when retry succeeds", async() => {
+    test("does not retry GET fetch failures", async() => {
+      const error = new TypeError("Load failed");
       global.fetch = jest.fn()
-        .mockRejectedValueOnce(new TypeError("Load failed"))
+        .mockRejectedValueOnce(error)
         .mockResolvedValueOnce({
           json: () => Promise.resolve({ test: 100 }),
         });
 
       const api = createApi({ captureException: jest.fn((x) => x) });
 
-      const result = await api.fetchResult("https://www.test.com", {
+      const [result] = await api.fetchResult("https://www.test.com", {
         setLoader: api.setLoading,
-        retryDelayMs: 0,
-      });
-
-      expect(result).toStrictEqual({ test: 100 });
-      expect(global.fetch).toHaveBeenCalledTimes(2);
-      expect(global.fetch).toHaveBeenNthCalledWith(1, fetchUrl("https://www.test.com"), fetchOptions("GET"));
-      expect(global.fetch).toHaveBeenNthCalledWith(2, fetchUrl("https://www.test.com"), fetchOptions("GET"));
-      expect(api.setLoading).toHaveBeenCalledTimes(2);
-      expect(api.setLoading.mock.calls[0][0]).toBe(true);
-      expect(api.setLoading.mock.calls[1][0]).toBe(false);
-      expect(api.captureException).toHaveBeenCalledTimes(0);
-    });
-
-    test("captures GET fetch failures only after the retry fails", async() => {
-      const firstError = new TypeError("Load failed");
-      const finalError = new TypeError("Load failed again");
-      global.fetch = jest.fn()
-        .mockRejectedValueOnce(firstError)
-        .mockRejectedValueOnce(finalError);
-
-      const api = createApi({ captureException: jest.fn((x) => x) });
-
-      const result = await api.fetchResult("https://www.test.com", {
-        setLoader: api.setLoading,
-        retryDelayMs: 0,
       });
 
       expect(result).toBeNull();
-      expect(global.fetch).toHaveBeenCalledTimes(2);
+      expect(global.fetch).toHaveBeenCalledTimes(1);
+      expect(global.fetch).toHaveBeenCalledWith(fetchUrl("https://www.test.com"), fetchOptions("GET"));
       expect(api.setLoading).toHaveBeenCalledTimes(2);
       expect(api.setLoading.mock.calls[0][0]).toBe(true);
       expect(api.setLoading.mock.calls[1][0]).toBe(false);
       expect(api.captureException).toHaveBeenCalledTimes(1);
-      expect(api.captureException).toHaveBeenCalledWith(finalError, {
-        message: "Fetch failed:",
-        extra: expect.objectContaining({
-          url: "https://www.test.com/",
-          method: "GET",
-          parse_json: true,
-          request_phase: "fetch",
-          request_attempts: 2,
-          request_retried: true,
-          request_type: "unknown",
-          url_integration_type: integrationType,
-          url_integration_version: integrationVersion,
-          url_host: "www.test.com",
-        }),
-        tags: expect.objectContaining({
-          "uptick.fetch_error": "TypeError",
-          "uptick.fetch_host": "www.test.com",
-          "uptick.request_phase": "fetch",
-          "uptick.request_retried": "true",
-          "uptick.request_type": "unknown",
-        }),
-        contexts: expect.objectContaining({
-          fetch_request: expect.objectContaining({
+      expect(api.captureException.mock.calls[0][0]).toBe(error);
+    });
+
+    test("captures GET fetch failures immediately", async() => {
+      const error = new TypeError("Load failed");
+      const restoreVisibility = setDocumentVisibility({
+        visibilityState: "visible",
+        hidden: false,
+      });
+      global.fetch = jest.fn().mockRejectedValue(error);
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      try {
+        const [result] = await api.fetchResult("https://www.test.com", {
+          setLoader: api.setLoading,
+        });
+
+        expect(result).toBeNull();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(api.setLoading).toHaveBeenCalledTimes(2);
+        expect(api.setLoading.mock.calls[0][0]).toBe(true);
+        expect(api.setLoading.mock.calls[1][0]).toBe(false);
+        expect(api.captureException).toHaveBeenCalledTimes(1);
+        expect(api.captureException).toHaveBeenCalledWith(error, {
+          message: "Fetch failed:",
+          extra: expect.objectContaining({
+            url: "https://www.test.com/",
             method: "GET",
             parse_json: true,
-            phase: "fetch",
-            attempts: 2,
-            retried: true,
+            request_phase: "fetch",
             request_type: "unknown",
+            request_document_visible: true,
+            request_likely_teardown: false,
+            document_visibility_source: "visibility_state",
+            document_visibility_state: "visible",
+            document_hidden: false,
             url_integration_type: integrationType,
             url_integration_version: integrationVersion,
             url_host: "www.test.com",
           }),
-        }),
+          tags: expect.objectContaining({
+            "uptick.fetch_error": "TypeError",
+            "uptick.fetch_host": "www.test.com",
+            "uptick.request_phase": "fetch",
+            "uptick.request_type": "unknown",
+            "uptick.document_visibility_source": "visibility_state",
+            "uptick.document_visibility_state": "visible",
+            "uptick.request_document_visible": "true",
+            "uptick.request_likely_teardown": "false",
+          }),
+          contexts: expect.objectContaining({
+            fetch_request: expect.objectContaining({
+              method: "GET",
+              parse_json: true,
+              phase: "fetch",
+              request_type: "unknown",
+              document_visible: true,
+              likely_teardown: false,
+              url_integration_type: integrationType,
+              url_integration_version: integrationVersion,
+              url_host: "www.test.com",
+            }),
+            fetch_runtime: expect.objectContaining({
+              document_visibility_source: "visibility_state",
+              document_visibility_state: "visible",
+              document_hidden: false,
+            }),
+          }),
+        });
+      } finally {
+        restoreVisibility();
+      }
+    });
+
+    test("does not retry or capture hidden pre-response fetch failures", async() => {
+      const restoreVisibility = setDocumentVisibility({
+        visibilityState: "hidden",
+        hidden: true,
       });
+      global.fetch = jest.fn().mockRejectedValue(new TypeError("Load failed"));
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      try {
+        const [result] = await api.fetchResult("https://www.test.com", {
+          setLoader: api.setLoading,
+        });
+
+        expect(result).toBeNull();
+        expect(global.fetch).toHaveBeenCalledTimes(1);
+        expect(api.setLoading).toHaveBeenCalledTimes(2);
+        expect(api.captureException).toHaveBeenCalledTimes(0);
+      } finally {
+        restoreVisibility();
+      }
     });
 
     test("merges custom capture context into fetch failures", async() => {
@@ -1247,7 +1410,7 @@ describe("api", () => {
 
       const api = createApi({ captureException: jest.fn((x) => x) });
 
-      const result = await api.fetchResult("https://www.test.com/events", {
+      const [result] = await api.fetchResult("https://www.test.com/events", {
         method: "POST",
         setLoader: api.setLoading,
         captureContext: {
@@ -1283,7 +1446,7 @@ describe("api", () => {
       }));
     });
 
-    test("captures non-ok HTTP responses without parsing the body", async() => {
+    test("captures non-ok HTTP responses without parsing non-suppressible statuses", async() => {
       const json = jest.fn();
       global.fetch = jest.fn().mockResolvedValue({
         ok: false,
@@ -1297,7 +1460,7 @@ describe("api", () => {
 
       const api = createApi({ captureException: jest.fn((x) => x) });
 
-      const result = await api.fetchResult("https://www.test.com/events?first_name=Hidden&zip=12345", {
+      const [result] = await api.fetchResult("https://www.test.com/events?first_name=Hidden&zip=12345", {
         setLoader: api.setLoading,
       });
 
@@ -1326,6 +1489,193 @@ describe("api", () => {
       }));
       expect(JSON.stringify(context)).not.toContain("Hidden");
       expect(JSON.stringify(context)).not.toContain("12345");
+    });
+
+    test.each([
+      ["placement_disabled", 422, "Integration placement disabled"],
+      ["site_blocked", 403, "Publisher site is blocked"],
+      ["flow_expired", 410, "Flow TTL has passed"],
+    ])("does not capture expected %s responses", async(code, status, title) => {
+      const json = jest.fn().mockResolvedValue({
+        errors: [
+          {
+            title,
+            code,
+          },
+        ],
+      });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status,
+        statusText: "Expected Empty Result",
+        url: "https://www.test.com/offers/new",
+        type: "cors",
+        redirected: false,
+        json,
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const [result, context] = await api.fetchResult("https://www.test.com/offers/new", {
+        setLoader: api.setLoading,
+      });
+
+      expect(result).toBeNull();
+      expect(context).toStrictEqual({
+        code,
+        title,
+        phase: "http_status",
+        responseStatus: status,
+      });
+      expect(json).toHaveBeenCalledTimes(1);
+      expect(api.setLoading).toHaveBeenCalledTimes(2);
+      expect(api.captureException).toHaveBeenCalledTimes(0);
+    });
+
+    test("does not let the request timeout erase expected response codes during body parsing", async() => {
+      jest.useFakeTimers();
+      let fetchSignal;
+      const json = jest.fn(() => {
+        jest.advanceTimersByTime(51);
+
+        if (fetchSignal.aborted) {
+          return Promise.reject(new Error("body aborted"));
+        }
+
+        return Promise.resolve({
+          errors: [
+            {
+              title: "Integration placement disabled",
+              code: "placement_disabled",
+            },
+          ],
+        });
+      });
+      global.fetch = jest.fn((url, options) => {
+        fetchSignal = options.signal;
+
+        return Promise.resolve({
+          ok: false,
+          status: 422,
+          statusText: "Unprocessable Content",
+          url: "https://www.test.com/offers/new",
+          type: "cors",
+          redirected: false,
+          json,
+        });
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      try {
+        const [result, context] = await api.fetchResult("https://www.test.com/offers/new", {
+          setLoader: api.setLoading,
+          fetchTimeoutMs: 50,
+        });
+
+        expect(result).toBeNull();
+        expect(context).toStrictEqual({
+          code: "placement_disabled",
+          title: "Integration placement disabled",
+          phase: "http_status",
+          responseStatus: 422,
+        });
+        expect(json).toHaveBeenCalledTimes(1);
+        expect(fetchSignal.aborted).toBe(false);
+        expect(api.captureException).toHaveBeenCalledTimes(0);
+      } finally {
+        jest.useRealTimers();
+      }
+    });
+
+    test("captures expected-status responses when the body does not contain a readable expected code", async() => {
+      const json = jest.fn().mockRejectedValue(new SyntaxError("Unexpected token '<'"));
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: "Unprocessable Content",
+        url: "https://www.test.com/offers/new",
+        type: "cors",
+        redirected: false,
+        json,
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const [result] = await api.fetchResult("https://www.test.com/offers/new", {
+        setLoader: api.setLoading,
+      });
+
+      expect(result).toBeNull();
+      expect(json).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+
+      const [error, context] = api.captureException.mock.calls[0];
+      expect(error.name).toBe("HttpError");
+      expect(context).toStrictEqual(expect.objectContaining({
+        extra: expect.objectContaining({
+          response_status: 422,
+          request_phase: "http_status",
+          request_type: "offer",
+        }),
+        contexts: expect.objectContaining({
+          fetch_response: expect.objectContaining({
+            response_status: 422,
+          }),
+        }),
+      }));
+    });
+
+    test("captures non-suppressed API error titles after checking for empty result codes", async() => {
+      const json = jest.fn().mockResolvedValue({
+        errors: [
+          {
+            title: "Integration placement not found",
+          },
+        ],
+      });
+      global.fetch = jest.fn().mockResolvedValue({
+        ok: false,
+        status: 422,
+        statusText: "Unprocessable Content",
+        url: "https://www.test.com/offers/new",
+        type: "cors",
+        redirected: false,
+        json,
+      });
+
+      const api = createApi({ captureException: jest.fn((x) => x) });
+
+      const [result] = await api.fetchResult("https://www.test.com/offers/new", {
+        setLoader: api.setLoading,
+      });
+
+      expect(result).toBeNull();
+      expect(json).toHaveBeenCalledTimes(1);
+      expect(api.captureException).toHaveBeenCalledTimes(1);
+
+      const [error, context] = api.captureException.mock.calls[0];
+      expect(error.name).toBe("HttpError");
+      expect(error.message).toBe("Fetch failed with HTTP status 422");
+      expect(context).toStrictEqual(expect.objectContaining({
+        extra: expect.objectContaining({
+          api_error_title: "Integration placement not found",
+          response_status: 422,
+          response_status_text: "Unprocessable Content",
+          request_phase: "http_status",
+          request_type: "offer",
+        }),
+        tags: expect.objectContaining({
+          "uptick.fetch_error": "HttpError",
+          "uptick.request_phase": "http_status",
+          "uptick.request_type": "offer",
+        }),
+        contexts: expect.objectContaining({
+          fetch_api_error: {
+            api_error_title: "Integration placement not found",
+          },
+        }),
+      }));
     });
 
     test("passes an abort signal to fetch so stalled requests can time out", async() => {
@@ -1391,7 +1741,7 @@ describe("api", () => {
       const api = createApi({ captureException: jest.fn((x) => x) });
 
       try {
-        const result = await api.fetchResult("https://www.test.com", {
+        const [result] = await api.fetchResult("https://www.test.com", {
           method: "POST",
           setLoader: api.setLoading
         });
@@ -1408,8 +1758,6 @@ describe("api", () => {
             method: "POST",
             parse_json: true,
             request_phase: "parse_json",
-            request_attempts: 1,
-            request_retried: false,
             fetch_context_error_message: "connection unavailable",
           }),
           tags: expect.objectContaining({
@@ -1424,8 +1772,6 @@ describe("api", () => {
               method: "POST",
               parse_json: true,
               phase: "parse_json",
-              attempts: 1,
-              retried: false,
             }),
           }),
         });
@@ -1456,7 +1802,7 @@ describe("api", () => {
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
 
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });
@@ -1493,7 +1839,7 @@ describe("api", () => {
         links: { next_offer: "next_url", offer_event: "event_url" }
       };
 
-      jest.spyOn(api, "fetchResult").mockImplementation(() => returnResult);
+      jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple(returnResult));
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);
 
       await api.getOfferBase(offerUrlBase, { method: "GET", setLoader: api.setLoading });

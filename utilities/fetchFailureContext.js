@@ -1,6 +1,10 @@
+function objectBag(value) {
+  return value != null && typeof value === "object" ? value : {};
+}
+
 export function compactObject(object) {
   return Object.fromEntries(
-    Object.entries(object).filter(([, value]) => value !== undefined),
+    Object.entries(objectBag(object)).filter(([, value]) => value !== undefined),
   );
 }
 
@@ -10,28 +14,34 @@ export function mergeCaptureContext(baseContext = {}, overrideContext = {}) {
     tags: baseTags = {},
     contexts: baseContexts = {},
     ...baseRest
-  } = baseContext || {};
+  } = objectBag(baseContext);
   const {
     extra = {},
     tags = {},
     contexts = {},
     ...rest
-  } = overrideContext || {};
+  } = objectBag(overrideContext);
+  const baseExtraBag = objectBag(baseExtra);
+  const baseTagsBag = objectBag(baseTags);
+  const baseContextsBag = objectBag(baseContexts);
+  const extraBag = objectBag(extra);
+  const tagsBag = objectBag(tags);
+  const contextsBag = objectBag(contexts);
 
   return {
     ...baseRest,
     ...rest,
     extra: compactObject({
-      ...baseExtra,
-      ...extra,
+      ...baseExtraBag,
+      ...extraBag,
     }),
     tags: compactObject({
-      ...baseTags,
-      ...tags,
+      ...baseTagsBag,
+      ...tagsBag,
     }),
     contexts: {
-      ...baseContexts,
-      ...contexts,
+      ...baseContextsBag,
+      ...contextsBag,
     },
   };
 }
@@ -95,6 +105,73 @@ export function errorContext(error) {
   });
 }
 
+export function documentVisibilityContext() {
+  try {
+    if (typeof document === "undefined") {
+      return {
+        document_visibility_source: "no_document",
+        document_visibility_state: "unsupported",
+        document_hidden: "unsupported",
+      };
+    }
+
+    if (document.visibilityState != null) {
+      return {
+        document_visibility_source: "visibility_state",
+        document_visibility_state: document.visibilityState,
+        document_hidden: document.hidden ?? "unsupported",
+      };
+    }
+
+    if (document.hidden != null) {
+      return {
+        document_visibility_source: "hidden_flag",
+        document_visibility_state: "unsupported",
+        document_hidden: document.hidden,
+      };
+    }
+  } catch {
+    return {
+      document_visibility_source: "unsupported",
+      document_visibility_state: "unsupported",
+      document_hidden: "unsupported",
+    };
+  }
+
+  return {
+    document_visibility_source: "unsupported",
+    document_visibility_state: "unsupported",
+    document_hidden: "unsupported",
+  };
+}
+
+export function documentIsVisible(visibilityContext = documentVisibilityContext()) {
+  if (visibilityContext.document_visibility_source === "visibility_state") {
+    return visibilityContext.document_visibility_state === "visible";
+  }
+
+  if (visibilityContext.document_visibility_source === "hidden_flag") {
+    return visibilityContext.document_hidden === false;
+  }
+
+  return undefined;
+}
+
+export function isLikelyFetchTeardown({ phase, response, timedOut, visibilityContext } = {}) {
+  const visible = documentIsVisible(visibilityContext);
+
+  if (visible == null) {
+    return undefined;
+  }
+
+  return (
+    phase === "fetch" &&
+    response == null &&
+    timedOut !== true &&
+    visible === false
+  );
+}
+
 export function navigatorContext() {
   if (typeof navigator === "undefined") {
     return {};
@@ -122,16 +199,20 @@ export function buildFetchFailureContext(url, options = {}) {
     endedAt,
     error,
     response,
-    attempt,
-    retried,
+    apiErrorContext = {},
     timeoutMs,
     timedOut,
+    visibilityContext = documentVisibilityContext(),
+    likelyTeardown,
   } = options;
+  const apiErrorDetails = objectBag(apiErrorContext);
+  const visibilityDetails = objectBag(visibilityContext);
   const elapsedMs = startedAt == null || endedAt == null ? undefined : endedAt - startedAt;
 
   try {
     const requestContext = requestUrlContext(url);
     const runtimeContext = navigatorContext();
+    const documentVisible = documentIsVisible(visibilityDetails);
     const responseContext = compactObject({
       response_status: response?.status,
       response_status_text: response?.statusText,
@@ -139,20 +220,49 @@ export function buildFetchFailureContext(url, options = {}) {
       response_type: response?.type,
       response_redirected: response?.redirected,
     });
+    const apiError = compactObject({
+      api_error_code: apiErrorDetails.code,
+      api_error_title: apiErrorDetails.title,
+    });
+    const contexts = {
+      fetch_request: compactObject({
+        method,
+        parse_json: parseJson,
+        phase,
+        elapsed_ms: elapsedMs,
+        timeout_ms: timeoutMs,
+        timed_out: timedOut,
+        document_visible: documentVisible,
+        likely_teardown: likelyTeardown,
+        ...requestContext,
+      }),
+      fetch_runtime: {
+        ...runtimeContext,
+        ...visibilityDetails,
+      },
+      fetch_response: responseContext,
+    };
+
+    if (Object.keys(apiError).length > 0) {
+      contexts.fetch_api_error = apiError;
+    }
+
     const extra = compactObject({
       url: sanitizedUrl(url),
       method,
       parse_json: parseJson,
       request_phase: phase,
       request_elapsed_ms: elapsedMs,
-      request_attempts: attempt,
-      request_retried: retried,
       request_timeout_ms: timeoutMs,
       request_timed_out: timedOut,
+      request_document_visible: documentVisible,
+      request_likely_teardown: likelyTeardown,
       ...requestContext,
       ...responseContext,
+      ...apiError,
       ...errorContext(error),
       ...runtimeContext,
+      ...visibilityDetails,
     });
 
     return {
@@ -163,27 +273,44 @@ export function buildFetchFailureContext(url, options = {}) {
         "uptick.request_phase": phase,
         "uptick.fetch_host": requestContext.url_host,
         "uptick.fetch_error": error?.name || typeof error,
+        "uptick.api_error_code": apiErrorDetails.code,
         "uptick.navigator_online": runtimeContext.navigator_online == null ? undefined : String(runtimeContext.navigator_online),
-        "uptick.request_retried": retried == null ? undefined : String(retried),
         "uptick.request_timed_out": timedOut == null ? undefined : String(timedOut),
+        "uptick.document_visibility_source": visibilityDetails.document_visibility_source,
+        "uptick.document_visibility_state": visibilityDetails.document_visibility_state,
+        "uptick.request_document_visible": documentVisible == null ? undefined : String(documentVisible),
+        "uptick.request_likely_teardown": likelyTeardown == null ? undefined : String(likelyTeardown),
       }),
-      contexts: {
-        fetch_request: compactObject({
-          method,
-          parse_json: parseJson,
-          phase,
-          elapsed_ms: elapsedMs,
-          attempts: attempt,
-          retried,
-          timeout_ms: timeoutMs,
-          timed_out: timedOut,
-          ...requestContext,
-        }),
-        fetch_runtime: runtimeContext,
-        fetch_response: responseContext,
-      },
+      contexts,
     };
   } catch (contextError) {
+    const fallbackApiError = compactObject({
+      api_error_code: apiErrorDetails.code,
+      api_error_title: apiErrorDetails.title,
+    });
+    const contexts = {
+      fetch_request: compactObject({
+        method,
+        parse_json: parseJson,
+        phase,
+        elapsed_ms: elapsedMs,
+        timeout_ms: timeoutMs,
+        timed_out: timedOut,
+        likely_teardown: likelyTeardown,
+      }),
+      fetch_runtime: compactObject({
+        ...visibilityDetails,
+      }),
+      fetch_context_error: compactObject({
+        name: contextError?.name,
+        message: contextError?.message,
+      }),
+    };
+
+    if (Object.keys(fallbackApiError).length > 0) {
+      contexts.fetch_api_error = fallbackApiError;
+    }
+
     return {
       message: "Fetch failed:",
       extra: compactObject({
@@ -192,35 +319,25 @@ export function buildFetchFailureContext(url, options = {}) {
         parse_json: parseJson,
         request_phase: phase,
         request_elapsed_ms: elapsedMs,
-        request_attempts: attempt,
-        request_retried: retried,
         request_timeout_ms: timeoutMs,
         request_timed_out: timedOut,
+        request_likely_teardown: likelyTeardown,
+        api_error_code: apiErrorDetails.code,
+        api_error_title: apiErrorDetails.title,
+        ...visibilityDetails,
         fetch_context_error_name: contextError?.name,
         fetch_context_error_message: contextError?.message,
       }),
       tags: compactObject({
         "uptick.request_phase": phase,
         "uptick.fetch_context_error": contextError?.name || typeof contextError,
-        "uptick.request_retried": retried == null ? undefined : String(retried),
+        "uptick.api_error_code": apiErrorDetails.code,
         "uptick.request_timed_out": timedOut == null ? undefined : String(timedOut),
+        "uptick.document_visibility_source": visibilityDetails.document_visibility_source,
+        "uptick.document_visibility_state": visibilityDetails.document_visibility_state,
+        "uptick.request_likely_teardown": likelyTeardown == null ? undefined : String(likelyTeardown),
       }),
-      contexts: {
-        fetch_request: compactObject({
-          method,
-          parse_json: parseJson,
-          phase,
-          elapsed_ms: elapsedMs,
-          attempts: attempt,
-          retried,
-          timeout_ms: timeoutMs,
-          timed_out: timedOut,
-        }),
-        fetch_context_error: compactObject({
-          name: contextError?.name,
-          message: contextError?.message,
-        }),
-      },
+      contexts,
     };
   }
 }

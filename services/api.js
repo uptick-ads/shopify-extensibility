@@ -1,22 +1,29 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
 import {
   buildFetchFailureContext,
+  documentVisibilityContext,
+  isLikelyFetchTeardown,
   mergeCaptureContext,
 } from "../utilities/fetchFailureContext.js";
 
 const MAX_REDIRECTS = 3;
-const MAX_SAFE_FETCH_ATTEMPTS = 2;
-const SAFE_FETCH_RETRY_DELAY_MS = 150;
 const OFFER_VIEWED_CAPTURE_SAMPLE_RATE = 0.1;
 const FETCH_TIMEOUT_MS = 8000;
 const INTEGRATION_TYPE = "shopify_extensibility";
 const INTEGRATION_VERSION = "1.1.0";
+const EXPECTED_EMPTY_RESULT_HTTP_STATUSES = new Set([403, 410, 422]);
+const EXPECTED_EMPTY_RESULT_ERROR_CODES = new Set([
+  "placement_disabled",
+  "site_blocked",
+  "flow_expired",
+]);
 
 export default class Api {
   constructor({
     integrationId = null,
     captureWarning = null,
     captureException = null,
+    fetchFunction = null,
     baseURL = "https://api.uptick.com",
     options = {}
   } = {}) {
@@ -36,6 +43,7 @@ export default class Api {
     // Set variables from constructor
     this.captureException = captureException;
     this.captureWarning = captureWarning;
+    this.fetchFunction = fetchFunction || ((...args) => fetch(...args));
     this.baseURL = baseURL;
     this.options = options || {};
 
@@ -98,12 +106,20 @@ export default class Api {
       }
 
       this.setLoading(true);
-      this.flow = await this.fetchResult(url.toString(), { setLoader: this.noop });
+      const [flow, flowContext] = await this.fetchResult(url.toString(), { setLoader: this.noop });
+      this.flow = flow;
+      if (this.handleFetchResultContext(flowContext)) {
+        return false;
+      }
 
       // Handle no_redirect response — follow flow_url if present
       if (isPresent(this.flow?.flow_url)) {
         const flowUrl = this.flow.flow_url;
-        this.flow = await this.fetchResult(flowUrl, { setLoader: this.noop });
+        const [redirectFlow, redirectFlowContext] = await this.fetchResult(flowUrl, { setLoader: this.noop });
+        this.flow = redirectFlow;
+        if (this.handleFetchResultContext(redirectFlowContext)) {
+          return false;
+        }
 
         if (isPresent(this.flow?.flow_url)) {
           this.captureException(new Error("Unexpected second flow_url redirect."), { extra: { flow_url: this.flow.flow_url } });
@@ -154,6 +170,9 @@ export default class Api {
     return await this.getOfferBase(nextOfferURL, { method, setLoader: this.setLoading });
   }
 
+  /**
+   * @private Internal offer-fetch implementation. Public callers should use getInitialOffer/getNextOffer.
+   */
   async getOfferBase(offerURL, { method, setLoader, _redirectCount = 0 } = {}) {
     if (_redirectCount >= MAX_REDIRECTS) {
       this.captureException(new Error("Maximum offer redirects exceeded."), { extra: { offerURL, _redirectCount } });
@@ -199,7 +218,12 @@ export default class Api {
       url.searchParams.set("no_redirect", "1");
     }
 
-    const offerResult = await this.fetchResult(url.toString(), { method, setLoader });
+    const fetchOptions = { method, setLoader };
+
+    const [offerResult, offerContext] = await this.fetchResult(url.toString(), fetchOptions);
+    if (this.handleFetchResultContext(offerContext)) {
+      return false;
+    }
 
     // Handle no_redirect response — follow next_offer_url if present
     if (isPresent(offerResult?.next_offer_url)) {
@@ -235,6 +259,9 @@ export default class Api {
     return offerData;
   }
 
+  /**
+   * @private Fire-and-forget telemetry helper used by getOfferBase.
+   */
   async offerViewedEvent(offerResult) {
     if (isEmpty(offerResult?.links?.offer_event)) {
       this.captureWarning("Unable to find offer event link from offer.");
@@ -266,13 +293,14 @@ export default class Api {
         this.addParam(url, navigator?.userAgent, "ua"); // User Agent string
       }
 
-      return await this.fetchResult(url.toString(), {
+      const [result] = await this.fetchResult(url.toString(), {
         method: "POST",
         setLoader: this.noop,
         parseJson: false,
         captureContext: telemetryCaptureContext,
         captureFailureSampleRate: OFFER_VIEWED_CAPTURE_SAMPLE_RATE,
       });
+      return result;
     } catch (error) {
       // Offer-viewed telemetry should not affect rendering or pollute error monitoring.
       if (this.shouldCaptureFetchFailure(OFFER_VIEWED_CAPTURE_SAMPLE_RATE)) {
@@ -284,10 +312,16 @@ export default class Api {
     }
   }
 
+  /**
+   * @private Current timestamp wrapper for tests and request telemetry.
+   */
   getTimeStamp() {
     return new Date().getTime();
   }
 
+  /**
+   * @private Adds configured integration options to API request URLs.
+   */
   addOptionsToUrl(url) {
     if (this.options && typeof this.options === "object") {
       Object.keys(this.options).forEach(key => {
@@ -299,6 +333,9 @@ export default class Api {
     }
   }
 
+  /**
+   * @private Safely adds a non-empty query parameter to a request URL.
+   */
   addParam(url, value, query_param_key) {
     try {
       if (isPresent(value)) {
@@ -309,14 +346,9 @@ export default class Api {
     }
   }
 
-  retryableFetchFailure({ method, phase, response }) {
-    return method === "GET" && phase === "fetch" && response == null;
-  }
-
-  wait(ms) {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-
+  /**
+   * @private Adds integration identifiers as query params to avoid CORS preflight headers.
+   */
   urlWithIntegrationParams(url) {
     try {
       const requestUrl = new URL(url);
@@ -330,6 +362,9 @@ export default class Api {
     }
   }
 
+  /**
+   * @private Builds an abort signal wrapper for request timeouts.
+   */
   createAbortTimeout(timeoutMs) {
     if (timeoutMs == null || timeoutMs <= 0 || typeof AbortController === "undefined") {
       return {};
@@ -349,98 +384,200 @@ export default class Api {
     };
   }
 
+  /**
+   * @private Converts a non-ok HTTP response into the error captured by Sentry.
+   */
   httpErrorFromResponse(response) {
     const error = new Error(`Fetch failed with HTTP status ${response.status}`);
     error.name = "HttpError";
     return error;
   }
 
+  /**
+   * @private Extracts structured metadata from known non-ok response bodies.
+   */
+  async fetchResultContextFromResponse(response) {
+    if (
+      response?.ok !== false ||
+      !EXPECTED_EMPTY_RESULT_HTTP_STATUSES.has(response.status) ||
+      typeof response.json !== "function"
+    ) {
+      return {};
+    }
+
+    try {
+      const body = await response.json();
+
+      return {
+        code: body?.errors?.[0]?.code,
+        title: body?.errors?.[0]?.title,
+        responseStatus: response.status,
+      };
+    } catch {
+      return {};
+    }
+  }
+
+  /**
+   * @private Indicates whether a non-ok response is an expected empty API result.
+   */
+  isExpectedEmptyFetchResult(context) {
+    return EXPECTED_EMPTY_RESULT_ERROR_CODES.has(context?.code);
+  }
+
+  /**
+   * @private Returns the warning text for expected empty API responses.
+   */
+  fetchResultWarningMessage(context) {
+    if (!this.isExpectedEmptyFetchResult(context)) {
+      return null;
+    }
+
+    if (isPresent(context?.title) && isPresent(context?.code)) {
+      return `${context.title} (${context.code}).`;
+    }
+
+    if (isPresent(context?.title)) {
+      return context.title;
+    }
+
+    if (isPresent(context?.code)) {
+      return `API returned expected empty result (${context.code}).`;
+    }
+
+    return null;
+  }
+
+  /**
+   * @private Handles expected empty API responses. Returns true when callers should stop.
+   */
+  handleFetchResultContext(context) {
+    if (!this.isExpectedEmptyFetchResult(context)) {
+      return false;
+    }
+
+    const warningMessage = this.fetchResultWarningMessage(context);
+    if (isPresent(warningMessage)) {
+      this.captureWarning(warningMessage);
+    }
+
+    return true;
+  }
+
+  /**
+   * @private Samples low-priority fetch failures.
+   */
   shouldCaptureFetchFailure(sampleRate) {
     return sampleRate >= 1 || Math.random() < sampleRate;
   }
 
+  /**
+   * @private Internal transport helper. Returns [result, context]; public callers should not use directly.
+   */
   async fetchResult(url, {
     method = "GET",
     setLoader,
     parseJson = true,
     captureContext = {},
     captureFailureSampleRate = 1,
-    retryDelayMs = SAFE_FETCH_RETRY_DELAY_MS,
     fetchTimeoutMs = FETCH_TIMEOUT_MS,
+    fetchFunction = this.fetchFunction,
   } = {}) {
     const normalizedMethod = (method ?? "GET").toUpperCase();
-    const maxAttempts = normalizedMethod === "GET" ? MAX_SAFE_FETCH_ATTEMPTS : 1;
     const requestUrl = this.urlWithIntegrationParams(url);
     const updateLoader = typeof setLoader === "function" ? setLoader : this.noop;
+    const startedAt = this.getTimeStamp();
+    let phase = "fetch";
+    let rawResult = null;
+    let apiErrorContext = {};
+    let abortTimeout = {};
 
     updateLoader(true);
 
     try {
-      for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-        const startedAt = this.getTimeStamp();
-        let phase = "fetch";
-        let rawResult = null;
-        let abortTimeout = {};
-
-        try {
-          abortTimeout = this.createAbortTimeout(fetchTimeoutMs);
-          rawResult = await fetch(requestUrl, {
-            method: normalizedMethod,
-            redirect: "follow",
-            cache: "no-cache",
-            signal: abortTimeout.signal,
-            headers: {
-              Accept: "application/json",
-            }
-          });
-
-          if (rawResult?.ok === false) {
-            phase = "http_status";
-            throw this.httpErrorFromResponse(rawResult);
-          }
-
-          if (parseJson) {
-            phase = "parse_json";
-            return await rawResult.json();
-          }
-
-          phase = "read_body";
-          return rawResult.body;
-        } catch (error) {
-          if (
-            attempt < maxAttempts &&
-            this.retryableFetchFailure({ method: normalizedMethod, phase, response: rawResult })
-          ) {
-            await this.wait(retryDelayMs);
-            continue;
-          }
-
-          if (this.shouldCaptureFetchFailure(captureFailureSampleRate)) {
-            const context = buildFetchFailureContext(requestUrl, {
-              method: normalizedMethod,
-              parseJson,
-              phase,
-              startedAt,
-              endedAt: this.getTimeStamp(),
-              error,
-              response: rawResult,
-              attempt,
-              retried: attempt > 1,
-              timeoutMs: fetchTimeoutMs,
-              timedOut: abortTimeout.timedOut?.(),
-            });
-
-            this.captureException(error, mergeCaptureContext(context, captureContext));
-          }
-
-          return null;
-        } finally {
-          abortTimeout.clear?.();
+      abortTimeout = this.createAbortTimeout(fetchTimeoutMs);
+      rawResult = await fetchFunction(requestUrl, {
+        method: normalizedMethod,
+        redirect: "follow",
+        cache: "no-cache",
+        signal: abortTimeout.signal,
+        headers: {
+          Accept: "application/json",
         }
+      });
+
+      if (rawResult?.ok === false) {
+        phase = "http_status";
+        abortTimeout.clear?.();
+        apiErrorContext = {
+          ...await this.fetchResultContextFromResponse(rawResult),
+          phase,
+          responseStatus: rawResult.status,
+        };
+
+        if (this.isExpectedEmptyFetchResult(apiErrorContext)) {
+          return [null, apiErrorContext];
+        }
+
+        throw this.httpErrorFromResponse(rawResult);
       }
 
-      return null;
+      if (parseJson) {
+        phase = "parse_json";
+        return [await rawResult.json(), {
+          phase,
+          responseStatus: rawResult?.status,
+        }];
+      }
+
+      phase = "read_body";
+      return [rawResult.body, {
+        phase,
+        responseStatus: rawResult?.status,
+      }];
+    } catch (error) {
+      const timedOut = abortTimeout.timedOut?.();
+      const visibilityContext = documentVisibilityContext();
+      const likelyTeardown = isLikelyFetchTeardown({
+        phase,
+        response: rawResult,
+        timedOut,
+        visibilityContext,
+      });
+
+      let captured = false;
+
+      if (likelyTeardown !== true && this.shouldCaptureFetchFailure(captureFailureSampleRate)) {
+        const context = buildFetchFailureContext(requestUrl, {
+          method: normalizedMethod,
+          parseJson,
+          phase,
+          startedAt,
+          endedAt: this.getTimeStamp(),
+          error,
+          response: rawResult,
+          apiErrorContext,
+          timeoutMs: fetchTimeoutMs,
+          timedOut,
+          visibilityContext,
+          likelyTeardown,
+        });
+
+        this.captureException(error, mergeCaptureContext(context, captureContext));
+        captured = true;
+      }
+
+      return [null, {
+        captured,
+        error,
+        likelyTeardown,
+        phase,
+        responseStatus: rawResult?.status,
+        ...apiErrorContext,
+        timedOut,
+      }];
     } finally {
+      abortTimeout.clear?.();
       updateLoader(false);
     }
   }

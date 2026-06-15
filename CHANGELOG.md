@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [2026.6.15+1] - 2026-06-15
+
+
+### 🚀 Added
+- Updated api to only report unexpected errors
+
 ## [2026.6.10+2] - 2026-06-10
 
 

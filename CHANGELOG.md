@@ -1,6 +1,12 @@
 # Changelog
 
 
+## [2026.7.8+1] - 2026-07-08
+
+
+### Chore
+- *(deps)* Bump actions/checkout from 6 to 7
+
 ## [2026.6.15+1] - 2026-06-15
 
 

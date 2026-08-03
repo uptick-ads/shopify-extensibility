@@ -1,6 +1,14 @@
 # Changelog
 
 
+## [2026.8.3+1] - 2026-08-03
+
+
+### Chore
+- *(deps)* Bump slackapi/slack-github-action from 3.0.3 to 4.0.0
+- *(deps)* Bump actions/setup-node from 6 to 7
+- *(deps)* Bump 1password/load-secrets-action from 4 to 4.1.1
+
 ## [2026.7.8+1] - 2026-07-08
 
 

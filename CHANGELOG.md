@@ -1,5 +1,9 @@
 # Changelog
 
+## [2026.8.4+1] - 2026-08-04
+
+### 🔧 Miscellaneous
+- Updating github workflow
 
 ## [2026.8.3+1] - 2026-08-03
 

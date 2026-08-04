@@ -173,7 +173,7 @@ jobs:
         id: slack_credentials
         if: steps.format_changelog.outcome == 'success'
         continue-on-error: true
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -247,7 +247,7 @@ jobs:
       # Load the write token only after repository-owned code and the local release preparation
       # have completed.
       - name: Load GitHub write credentials
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -274,7 +274,7 @@ jobs:
         id: promotion_failure_slack_credentials
         if: failure() && steps.slack.outputs.ts != ''
         continue-on-error: true
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -346,7 +346,7 @@ jobs:
           fi
 
       - name: Load GitHub credentials
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -376,7 +376,7 @@ jobs:
         id: slack_credentials
         if: failure() && needs.Promote.outputs.slack_ts != ''
         continue-on-error: true
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:

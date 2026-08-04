@@ -22,7 +22,7 @@
     "@babel/preset-env": "^7.26.x",
     "@babel/preset-react": "^7.26.3",
     "babel-jest": "^30.0.0",
-    "@shopify/ui-extensions": "2026.4.x",
+    "@shopify/ui-extensions": "2026.7.x",
     "@testing-library/preact": "^3.2.0",
     "@testing-library/jest-dom": "^6.6.0",
     "eslint": "^9.39.0",

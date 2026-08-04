@@ -357,7 +357,7 @@ jobs:
       # safe to retry if the runner failed before observing its response.
       - name: Create or update GitHub Release
         id: github_release
-        uses: softprops/action-gh-release@v3.0.1
+        uses: softprops/action-gh-release@v3.0.2
         with:
           token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
           tag_name: ${{ needs.Promote.outputs.release_tag }}

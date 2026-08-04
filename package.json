@@ -20,7 +20,7 @@
   "devDependencies": {
     "@babel/core": "^7.29.0",
     "@babel/preset-env": "^7.26.x",
-    "@babel/preset-react": "^7.26.3",
+    "@babel/preset-react": "^8.0.1",
     "babel-jest": "^30.0.0",
     "@shopify/ui-extensions": "2026.4.x",
     "@testing-library/preact": "^3.2.0",

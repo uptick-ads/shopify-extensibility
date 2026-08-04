@@ -1,0 +1,427 @@
+name: "Promote to Production"
+
+on:
+  # Chain from Test so a red build never cuts a release. ReleaseTarget also requires Test itself
+  # to have been triggered by a push, excluding pull-request and manual Test runs.
+  workflow_run:
+    workflows: [Test]
+    branches: [main]
+    types:
+      - completed
+  workflow_dispatch:
+
+run-name: "Promote: ${{ github.event.workflow_run.head_commit.message || github.ref_name }}"
+
+concurrency:
+  group: production_promote
+  cancel-in-progress: false
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SLACK_CHANNEL_ID: C082BCMQBAR
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  ReleaseTarget:
+    runs-on: ubuntu-latest
+    if: >
+      github.actor != 'uptick-bot' &&
+      github.actor != 'dependabot[bot]' &&
+      (
+        (
+          github.event_name == 'workflow_dispatch' &&
+          github.ref == 'refs/heads/main'
+        ) ||
+        (
+          github.event_name == 'workflow_run' &&
+          github.event.workflow_run.event == 'push' &&
+          github.event.workflow_run.conclusion == 'success' &&
+          github.event.workflow_run.actor.login != 'uptick-bot' &&
+          github.event.workflow_run.actor.login != 'dependabot[bot]'
+        )
+      )
+    outputs:
+      should_promote: ${{ steps.target.outputs.should_promote }}
+      target_sha: ${{ steps.target.outputs.target_sha }}
+
+    steps:
+      # Manual recovery releases current main. For workflow_run, main must still point to the
+      # exact commit that passed Test; a queued run becomes a successful no-op after main moves.
+      - name: Checkout current main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: main
+
+      - name: Select release target
+        id: target
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          TESTED_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          current_main_sha=$(git rev-parse HEAD)
+
+          if [[ "$EVENT_NAME" == "workflow_run" && "$TESTED_SHA" != "$current_main_sha" ]]; then
+            echo "::notice::Skipping stale Test run for ${TESTED_SHA}; main is now ${current_main_sha}."
+            echo "should_promote=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "should_promote=true" >> "$GITHUB_OUTPUT"
+          echo "target_sha=$current_main_sha" >> "$GITHUB_OUTPUT"
+
+  Promote:
+    runs-on: ubuntu-latest
+    needs: ReleaseTarget
+    if: needs.ReleaseTarget.outputs.should_promote == 'true'
+    outputs:
+      release_tag: ${{ steps.version.outputs.NEXT_VERSION }}
+      slack_announcement_outcome: ${{ steps.slack.outcome }}
+      slack_credentials_outcome: ${{ steps.slack_credentials.outcome }}
+      slack_format_outcome: ${{ steps.format_changelog.outcome }}
+      slack_payload: ${{ steps.format_changelog.outputs.slack_payload }}
+      slack_timestamp_outcome: ${{ steps.save_slack_ts.outcome }}
+      slack_ts: ${{ steps.slack.outputs.ts }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: main
+
+      - name: Verify release checkout
+        env:
+          TARGET_SHA: ${{ needs.ReleaseTarget.outputs.target_sha }}
+        run: |
+          checked_out_sha=$(git rev-parse HEAD)
+          if [[ "$checked_out_sha" != "$TARGET_SHA" ]]; then
+            echo "::error::main advanced from ${TARGET_SHA} to ${checked_out_sha} before promotion started."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Always regenerate the complete unreleased set, even when main contains a stale CHANGES.md.
+      - name: Generate changelog with git-cliff
+        uses: orhun/git-cliff-action@v4.8.0
+        with:
+          config: cliff.toml
+          args: --unreleased
+        env:
+          OUTPUT: CHANGES.md
+          GITHUB_REPO: ${{ github.repository }}
+
+      - name: Read changelog
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2.4.0
+        with:
+          path: ./CHANGES.md
+          validation_level: none
+          version: "Unreleased"
+
+      - name: Calculate next version
+        id: version
+        run: |
+          next_version=$(./bin/next_version.sh)
+          echo "NEXT_VERSION=$next_version" >> "$GITHUB_OUTPUT"
+          echo "Next version: $next_version"
+
+      # Keep the committed-file rewrite in tested repository code rather than an inline shell/YAML
+      # program. The helper rejects empty/duplicate releases and preserves special characters.
+      - name: Insert changes into CHANGELOG.md
+        env:
+          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
+          NEXT_VERSION: ${{ steps.version.outputs.NEXT_VERSION }}
+        run: node ./bin/update-changelog.js
+
+      - name: Remove CHANGES.md
+        run: |
+          if git ls-files --error-unmatch CHANGES.md >/dev/null 2>&1; then
+            git rm -f CHANGES.md
+          else
+            rm -f CHANGES.md
+          fi
+
+      - name: Format changelog for Slack
+        id: format_changelog
+        continue-on-error: true
+        run: |
+          node bin/format-changelog.js > slack_payload.json
+          payload_delimiter="SLACK_PAYLOAD_EOF_${RANDOM}_${RANDOM}"
+          {
+            echo "slack_payload<<${payload_delimiter}"
+            cat slack_payload.json
+            echo "${payload_delimiter}"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          CHANGELOG: ${{ steps.changelog_reader.outputs.changes }}
+          NEXT_VERSION: ${{ steps.version.outputs.NEXT_VERSION }}
+
+      - name: Load optional Slack credentials
+        id: slack_credentials
+        if: steps.format_changelog.outcome == 'success'
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v4.1.1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
+
+      - name: Announce the release
+        id: slack
+        if: >
+          steps.format_changelog.outcome == 'success' &&
+          steps.slack_credentials.outcome == 'success' &&
+          env.SLACK_BOT_TOKEN != ''
+        continue-on-error: true
+        uses: slackapi/slack-github-action@v3.0.3
+        with:
+          method: chat.postMessage
+          token: ${{ env.SLACK_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: "${{ env.SLACK_CHANNEL_ID }}"
+            text: "Uptick Shopify Extensibility ${{ steps.version.outputs.NEXT_VERSION }} is deploying"
+            blocks: ${{ steps.format_changelog.outputs.slack_payload }}
+            attachments:
+              - color: "dbab09"
+                fields:
+                  - title: "Status"
+                    short: true
+                    value: "Deploying"
+
+      # release.yml reads this committed timestamp to edit the same Slack message in place. Stage
+      # it only when Slack returned one, so a missing config/deploys directory cannot block release.
+      - name: Save deploy Slack ts
+        id: save_slack_ts
+        if: steps.slack.outputs.ts != ''
+        continue-on-error: true
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.NEXT_VERSION }}
+          SLACK_TS: ${{ steps.slack.outputs.ts }}
+        run: |
+          mkdir -p config/deploys
+          printf '%s\n' "$SLACK_TS" > "config/deploys/${NEXT_VERSION}.ts"
+          git add -- "config/deploys/${NEXT_VERSION}.ts"
+
+      - name: Clear Slack credentials
+        if: always()
+        continue-on-error: true
+        run: echo "SLACK_BOT_TOKEN=" >> "$GITHUB_ENV"
+
+      - name: Reconfirm release target
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+          TARGET_SHA: ${{ needs.ReleaseTarget.outputs.target_sha }}
+        run: |
+          basic_auth=$(printf 'x-access-token:%s' "$GH_READ_TOKEN" | base64 -w 0)
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${basic_auth}" fetch --no-tags origin refs/heads/main
+          current_main_sha=$(git rev-parse FETCH_HEAD)
+          if [[ "$current_main_sha" != "$TARGET_SHA" ]]; then
+            echo "::error::main advanced from ${TARGET_SHA} to ${current_main_sha} before the release commit."
+            exit 1
+          fi
+
+      - name: Commit changelog and tag
+        uses: EndBug/add-and-commit@v10
+        with:
+          add: 'CHANGELOG.md'
+          fetch: false
+          message: "chore: Release ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
+          push: false
+          tag: '${{ steps.version.outputs.NEXT_VERSION }}'
+
+      # Load the write token only after repository-owned code and the local release preparation
+      # have completed.
+      - name: Load GitHub write credentials
+        uses: 1password/load-secrets-action@v4.1.1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          PPX_DIGITAL_ACTIONS_PAT: op://uptick-production/github-actions/github-personal-access-token
+
+      # GitHub rejects the whole operation unless both refs can be updated, so main cannot advance
+      # without its matching version tag.
+      - name: Push release commit and tag atomically
+        env:
+          NEXT_VERSION: ${{ steps.version.outputs.NEXT_VERSION }}
+        run: |
+          basic_auth=$(printf 'x-access-token:%s' "$PPX_DIGITAL_ACTIONS_PAT" | base64 -w 0)
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${basic_auth}" push --atomic origin \
+            "HEAD:refs/heads/main" \
+            "refs/tags/${NEXT_VERSION}"
+
+      - name: Clear GitHub write credentials
+        if: always()
+        continue-on-error: true
+        run: echo "PPX_DIGITAL_ACTIONS_PAT=" >> "$GITHUB_ENV"
+
+      - name: Load optional Slack credentials for promotion failure
+        id: promotion_failure_slack_credentials
+        if: failure() && steps.slack.outputs.ts != ''
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v4.1.1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
+
+      - name: Update Slack with promotion failure
+        if: >
+          failure() &&
+          steps.promotion_failure_slack_credentials.outcome == 'success' &&
+          env.SLACK_BOT_TOKEN != '' &&
+          steps.slack.outputs.ts != ''
+        uses: slackapi/slack-github-action@v3.0.3
+        with:
+          method: chat.update
+          token: ${{ env.SLACK_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: "${{ env.SLACK_CHANNEL_ID }}"
+            ts: "${{ steps.slack.outputs.ts }}"
+            text: "Uptick Shopify Extensibility ${{ steps.version.outputs.NEXT_VERSION }} release failed"
+            blocks: ${{ steps.format_changelog.outputs.slack_payload }}
+            attachments:
+              - color: "FF5733"
+                fields:
+                  - title: "Status"
+                    short: true
+                    value: "Release failed"
+
+  # Publication is separate from release preparation. Re-running a failed publication job reads
+  # the committed tag and idempotently upserts the same GitHub Release.
+  PublishRelease:
+    runs-on: ubuntu-latest
+    needs: Promote
+    # If the atomic push reached GitHub but the runner lost its response, Promote can be marked
+    # failed even though the tag is valid. In that case, still finish publication.
+    if: ${{ always() && needs.Promote.outputs.release_tag != '' }}
+
+    steps:
+      - name: Checkout release tag
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: refs/tags/${{ needs.Promote.outputs.release_tag }}
+
+      - name: Read release changelog
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2.4.0
+        with:
+          path: ./CHANGELOG.md
+          validation_level: none
+          version: ${{ needs.Promote.outputs.release_tag }}
+
+      # This proves the atomic branch/tag push reached GitHub and prevents a delayed retry for an
+      # older release from generating an event or becoming Latest after a newer promotion.
+      - name: Verify release is still current
+        env:
+          GH_READ_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ needs.Promote.outputs.release_tag }}
+        run: |
+          basic_auth=$(printf 'x-access-token:%s' "$GH_READ_TOKEN" | base64 -w 0)
+          git -c http.https://github.com/.extraheader="AUTHORIZATION: basic ${basic_auth}" fetch --force --tags origin refs/heads/main:refs/remotes/origin/main
+          latest_tag=$(git describe --tags --abbrev=0 refs/remotes/origin/main)
+
+          if [[ "$latest_tag" != "$RELEASE_TAG" ]]; then
+            echo "::error::Refusing to publish stale release ${RELEASE_TAG}; the current release tag is ${latest_tag}."
+            exit 1
+          fi
+
+      - name: Load GitHub credentials
+        uses: 1password/load-secrets-action@v4.1.1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          PPX_DIGITAL_ACTIONS_PAT: op://uptick-production/github-actions/github-personal-access-token
+
+      # The action updates an existing release for this tag, so a successful API request remains
+      # safe to retry if the runner failed before observing its response.
+      - name: Create or update GitHub Release
+        id: github_release
+        uses: softprops/action-gh-release@v3.0.1
+        with:
+          token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
+          tag_name: ${{ needs.Promote.outputs.release_tag }}
+          name: Release ${{ needs.Promote.outputs.release_tag }}
+          body: ${{ steps.changelog_reader.outputs.changes }}
+          draft: false
+          prerelease: false
+          make_latest: true
+
+      - name: Clear GitHub credentials
+        if: always()
+        continue-on-error: true
+        run: echo "PPX_DIGITAL_ACTIONS_PAT=" >> "$GITHUB_ENV"
+
+      - name: Load optional Slack credentials for publication failure
+        id: slack_credentials
+        if: failure() && needs.Promote.outputs.slack_ts != ''
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v4.1.1
+        with:
+          export-env: true
+        env:
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
+
+      - name: Update Slack with publication failure
+        if: >
+          failure() &&
+          steps.slack_credentials.outcome == 'success' &&
+          env.SLACK_BOT_TOKEN != '' &&
+          needs.Promote.outputs.slack_ts != ''
+        uses: slackapi/slack-github-action@v3.0.3
+        with:
+          method: chat.update
+          token: ${{ env.SLACK_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: "${{ env.SLACK_CHANNEL_ID }}"
+            ts: "${{ needs.Promote.outputs.slack_ts }}"
+            text: "Uptick Shopify Extensibility ${{ needs.Promote.outputs.release_tag }} release publication failed"
+            blocks: ${{ needs.Promote.outputs.slack_payload }}
+            attachments:
+              - color: "FF5733"
+                fields:
+                  - title: "Status"
+                    short: true
+                    value: "Release publication failed"
+
+  # Keep Slack-announcement reporting separate from the idempotent GitHub Release upsert.
+  ReportSlackAnnouncementFailure:
+    runs-on: ubuntu-latest
+    needs: [Promote, PublishRelease]
+    if: >
+      always() &&
+      needs.PublishRelease.result == 'success' &&
+      (
+        needs.Promote.outputs.slack_format_outcome != 'success' ||
+        needs.Promote.outputs.slack_credentials_outcome != 'success' ||
+        needs.Promote.outputs.slack_announcement_outcome != 'success' ||
+        needs.Promote.outputs.slack_timestamp_outcome != 'success'
+      )
+
+    steps:
+      - name: Report Slack announcement failure
+        run: |
+          echo "::error::The release was created, but its Slack announcement failed."
+          exit 1

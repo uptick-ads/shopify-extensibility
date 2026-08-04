@@ -1,157 +1,260 @@
 name: "Release"
 
 on:
-  workflow_run:
-    workflows: [Test]
-    branches: [main]
+  release:
     types:
-      - completed
+      - released
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to process"
+        required: true
+        type: string
 
 concurrency:
-  group: production_release
+  group: extraction_release
   cancel-in-progress: false
+  queue: max
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  RELEASE_TAG: ${{ github.event.release.tag_name || github.event.inputs.release_tag }}
+  SLACK_CHANNEL_ID: C082BCMQBAR
+
+run-name: "Release: ${{ github.event.release.name || github.event.release.tag_name || github.event.inputs.release_tag }}"
 
 permissions:
-  contents: write
-
-run-name: "Release: ${{ github.event.workflow_run.head_commit.message }}"
+  contents: read
 
 jobs:
-  Release:
+  VerifyReleaseTag:
     runs-on: ubuntu-latest
-    if: ${{ github.actor != 'uptick-bot' && github.event.workflow_run.conclusion == 'success' }}
+    if: github.event_name == 'release' || github.ref == 'refs/heads/main'
+    name: "Verify release tag"
+    outputs:
+      release_sha: ${{ steps.verify.outputs.release_sha }}
 
     steps:
-      - name: Load credentials
+      - name: Validate release tag syntax
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^[0-9]{4}\.([1-9]|1[0-2])\.([1-9]|[12][0-9]|3[01])\+[1-9][0-9]*$ ]]; then
+            echo "::error::Release tag '${RELEASE_TAG}' must use YYYY.M.D+N CalVer syntax."
+            exit 1
+          fi
+
+      - name: Checkout current main
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: main
+
+      - name: Verify tag commit is on main
+        id: verify
+        env:
+          RELEASE_TAG: ${{ env.RELEASE_TAG }}
+        run: |
+          if ! release_sha=$(git rev-parse --verify "refs/tags/${RELEASE_TAG}^{commit}"); then
+            echo "::error::Release tag '${RELEASE_TAG}' does not exist or does not point to a commit."
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$release_sha" HEAD; then
+            echo "::error::Release tag '${RELEASE_TAG}' does not point to a commit on main."
+            exit 1
+          fi
+
+          echo "release_sha=$release_sha" >> "$GITHUB_OUTPUT"
+
+  ValidateRelease:
+    runs-on: ubuntu-latest
+    needs: [VerifyReleaseTag]
+    name: "Validate release"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.VerifyReleaseTag.outputs.release_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run lint
+        run: npm run lint
+
+      - name: Run Jest tests with coverage
+        run: npm run test:coverage
+
+  CompleteUpdateSlack:
+    runs-on: ubuntu-latest
+    needs: [VerifyReleaseTag, ValidateRelease]
+    name: "Complete Update Slack"
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+          ref: ${{ needs.VerifyReleaseTag.outputs.release_sha }}
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Get Changelog Entry
+        id: changelog_reader
+        uses: mindsers/changelog-reader-action@v2.4.0
+        with:
+          validation_level: none
+          version: "${{ env.RELEASE_TAG }}"
+          path: ./CHANGELOG.md
+
+      - name: Make the CHANGELOG available to the js script
+        env:
+          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
+        run: |
+          changelog_delimiter="CHANGELOG_EOF_${RANDOM}_${RANDOM}"
+          {
+            echo "CHANGELOG<<${changelog_delimiter}"
+            printf "%s\n" "$CHANGELOG_CHANGES"
+            echo "${changelog_delimiter}"
+            echo "NEXT_VERSION=${RELEASE_TAG}"
+          } >> "$GITHUB_ENV"
+
+      - name: Format changelog for Slack
+        id: format_changelog
+        run: |
+          node bin/format-changelog.js > slack_payload.json
+          payload_delimiter="SLACK_PAYLOAD_EOF_${RANDOM}_${RANDOM}"
+          {
+            echo "slack_payload<<${payload_delimiter}"
+            cat slack_payload.json
+            echo "${payload_delimiter}"
+          } >> "$GITHUB_OUTPUT"
+        env:
+          CHANGELOG: ${{ env.CHANGELOG }}
+
+      - name: Get the release Slack ts
+        id: slack_ts
+        run: |
+          ts=$(cat "config/deploys/${RELEASE_TAG}.ts" 2>/dev/null || true)
+          if [[ -z "$ts" ]]; then
+            echo "::warning::No release Slack timestamp was committed for ${RELEASE_TAG}; skipping the Released update."
+          elif [[ ! "$ts" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::The committed Slack timestamp for ${RELEASE_TAG} is invalid."
+            exit 1
+          fi
+          echo "version=$ts" >> "$GITHUB_OUTPUT"
+
+      # Load the token only after all code from the verified release has finished running.
+      - name: Load Slack credentials
+        id: slack_credentials
+        if: steps.slack_ts.outputs.version != ''
+        continue-on-error: true
         uses: 1password/load-secrets-action@v4.1.1
         with:
           export-env: true
         env:
           OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
-          PPX_DIGITAL_ACTIONS_PAT: op://uptick-production/github-actions/github-personal-access-token
           SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
 
+      - name: Update Slack with success
+        if: steps.slack_credentials.outcome == 'success' && env.SLACK_BOT_TOKEN != '' && steps.slack_ts.outputs.version != ''
+        uses: slackapi/slack-github-action@v3.0.3
+        with:
+          method: chat.update
+          token: ${{ env.SLACK_BOT_TOKEN }}
+          errors: true
+          payload: |
+            channel: "${{ env.SLACK_CHANNEL_ID }}"
+            ts: "${{ steps.slack_ts.outputs.version }}"
+            text: "Uptick Shopify Extensibility ${{ env.RELEASE_TAG }}"
+            blocks: ${{ steps.format_changelog.outputs.slack_payload }}
+            attachments:
+              - color: "28a745"
+                fields:
+                  - title: "Status"
+                    short: true
+                    value: "Released"
+
+      - name: Report unavailable Slack credentials
+        if: steps.slack_ts.outputs.version != '' && (steps.slack_credentials.outcome == 'failure' || env.SLACK_BOT_TOKEN == '')
+        run: |
+          echo "::error::The release validation succeeded, but Slack credentials are unavailable"
+          exit 1
+
+  NotifyFailure:
+    runs-on: ubuntu-latest
+    needs: [VerifyReleaseTag, ValidateRelease, CompleteUpdateSlack]
+    if: >
+      always() &&
+      needs.VerifyReleaseTag.result == 'success' &&
+      (needs.ValidateRelease.result == 'failure' || needs.CompleteUpdateSlack.result == 'failure')
+    name: "Notify Failure"
+
+    steps:
       - name: Checkout code
         uses: actions/checkout@v7
         with:
           fetch-depth: 0
-          token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
+          persist-credentials: false
+          ref: ${{ needs.VerifyReleaseTag.outputs.release_sha }}
 
-      - name: Check if already released
-        id: check_tag
+      - name: Get the release Slack ts
+        id: slack_ts
         run: |
-          if git tag --points-at HEAD | grep -q '.'; then
-            echo "skip=true" >> $GITHUB_OUTPUT
-            echo "HEAD already has a tag — skipping release."
-          else
-            echo "skip=false" >> $GITHUB_OUTPUT
+          ts=$(cat "config/deploys/${RELEASE_TAG}.ts" 2>/dev/null || true)
+          if [[ -z "$ts" ]]; then
+            echo "::warning::No release Slack timestamp was committed for ${RELEASE_TAG}; failure cannot be posted to the original message."
+          elif [[ ! "$ts" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "::warning::The committed Slack timestamp for ${RELEASE_TAG} is invalid; failure cannot be posted to it."
+            ts=""
           fi
+          echo "version=$ts" >> "$GITHUB_OUTPUT"
 
-      - name: Set up Node.js
-        if: steps.check_tag.outputs.skip == 'false'
-        uses: actions/setup-node@v7
+      # Load the token only after data from the verified release has been read.
+      - name: Load Slack credentials
+        id: slack_credentials
+        if: steps.slack_ts.outputs.version != ''
+        continue-on-error: true
+        uses: 1password/load-secrets-action@v4.1.1
         with:
-          node-version: '24'
-
-      - name: Check for CHANGES.md
-        if: steps.check_tag.outputs.skip == 'false'
-        id: check_changes
-        uses: andstor/file-existence-action@v3
-        with:
-          files: CHANGES.md
-
-      - name: Generate changelog with git-cliff
-        if: steps.check_tag.outputs.skip == 'false' && steps.check_changes.outputs.files_exists == 'false'
-        uses: orhun/git-cliff-action@v4.8.0
-        with:
-          config: cliff.toml
-          args: --unreleased
+          export-env: true
         env:
-          OUTPUT: CHANGES.md
-          GITHUB_REPO: ${{ github.repository }}
+          OP_SERVICE_ACCOUNT_TOKEN: ${{ secrets.OP_SERVICE_ACCOUNT_TOKEN }}
+          SLACK_BOT_TOKEN: op://uptick-production/github-actions/slack-bot-token
 
-      - name: Read changelog
-        if: steps.check_tag.outputs.skip == 'false'
-        id: changelog_reader
-        uses: mindsers/changelog-reader-action@v2
+      - name: Update Slack with failure
+        if: steps.slack_credentials.outcome == 'success' && env.SLACK_BOT_TOKEN != '' && steps.slack_ts.outputs.version != ''
+        uses: slackapi/slack-github-action@v3.0.3
         with:
-          path: ./CHANGES.md
-          validation_level: none
-          version: "Unreleased"
-
-      - name: Calculate next version
-        if: steps.check_tag.outputs.skip == 'false'
-        id: version
-        run: |
-          next_version=$(./bin/next_version.sh)
-          echo "NEXT_VERSION=$next_version" >> $GITHUB_OUTPUT
-          echo "Next version: $next_version"
-
-      - name: Insert changes into CHANGELOG.md
-        if: steps.check_tag.outputs.skip == 'false'
-        env:
-          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
-        run: |
-          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
-          insert_changelog="$(printf "\n## [${{ steps.version.outputs.NEXT_VERSION }}] - $(date +%Y-%m-%d)\n\n%s" "$sanitized_changes")"
-          awk -v insert="$insert_changelog" 'NR==3{print insert}1' CHANGELOG.md > CHANGELOG.tmp && mv CHANGELOG.tmp CHANGELOG.md
-
-      - name: Remove CHANGES.md
-        if: steps.check_tag.outputs.skip == 'false'
-        run: git rm -f --ignore-unmatch CHANGES.md
-
-      - name: Make the CHANGELOG available to the js script
-        if: steps.check_tag.outputs.skip == 'false'
-        env:
-          CHANGELOG_CHANGES: ${{ steps.changelog_reader.outputs.changes }}
-        run: |
-          sanitized_changes=$(printf "%s" "$CHANGELOG_CHANGES" | sed 's/%/%%/g')
-          echo "CHANGELOG<<EOF" >> $GITHUB_ENV
-          printf "%s\n" "$sanitized_changes" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-          echo "NEXT_VERSION=${{ steps.version.outputs.NEXT_VERSION }}" >> $GITHUB_ENV
-
-      - name: Format changelog for Slack
-        if: steps.check_tag.outputs.skip == 'false'
-        id: format_changelog
-        run: |
-          node bin/format-changelog.js > slack_payload.json
-          echo "slack_payload<<EOF" >> $GITHUB_OUTPUT
-          cat slack_payload.json >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
-        env:
-          CHANGELOG: ${{ env.CHANGELOG }}
-
-      - name: Post to Slack
-        if: steps.check_tag.outputs.skip == 'false' && env.SLACK_BOT_TOKEN != ''
-        uses: slackapi/slack-github-action@v4.0.0
-        with:
-          method: chat.postMessage
+          method: chat.update
           token: ${{ env.SLACK_BOT_TOKEN }}
+          errors: true
           payload: |
-            channel: "#product_releases"
-            text: "Uptick Shopify Extensibility ${{ steps.version.outputs.NEXT_VERSION }}"
-            blocks: ${{ steps.format_changelog.outputs.slack_payload }}
+            channel: "${{ env.SLACK_CHANNEL_ID }}"
+            ts: "${{ steps.slack_ts.outputs.version }}"
+            # Omitting text and blocks preserves the original release-note blocks, including when
+            # the changelog formatter is the component that failed.
+            attachments:
+              - color: "FF5733"
+                fields:
+                  - title: "Status"
+                    short: true
+                    value: "${{ needs.ValidateRelease.result == 'failure' && 'Release validation failed' || 'Release notification failed' }}"
 
-      - name: Commit changelog and tag
-        if: steps.check_tag.outputs.skip == 'false'
-        uses: EndBug/add-and-commit@v10
-        with:
-          add: 'CHANGELOG.md'
-          message: "chore: Release ${{ steps.version.outputs.NEXT_VERSION }}\n\n${{ steps.changelog_reader.outputs.changes }}"
-          tag: '${{ steps.version.outputs.NEXT_VERSION }}'
-
-      - name: Create GitHub Release
-        if: steps.check_tag.outputs.skip == 'false'
-        uses: softprops/action-gh-release@v3
-        with:
-          token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
-          tag_name: ${{ steps.version.outputs.NEXT_VERSION }}
-          name: Release ${{ steps.version.outputs.NEXT_VERSION }}
-          body: ${{ steps.changelog_reader.outputs.changes }}
-          draft: false
-          prerelease: false
-          make_latest: true
+      - name: Report unavailable Slack credentials
+        if: steps.slack_ts.outputs.version != '' && (steps.slack_credentials.outcome == 'failure' || env.SLACK_BOT_TOKEN == '')
+        run: echo "::warning::The release failed and Slack credentials are unavailable"

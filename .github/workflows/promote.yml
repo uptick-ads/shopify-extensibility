@@ -108,7 +108,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: '24.14.0'
 
       - name: Install dependencies
         run: npm ci
@@ -173,7 +173,7 @@ jobs:
         id: slack_credentials
         if: steps.format_changelog.outcome == 'success'
         continue-on-error: true
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -187,7 +187,7 @@ jobs:
           steps.slack_credentials.outcome == 'success' &&
           env.SLACK_BOT_TOKEN != ''
         continue-on-error: true
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           method: chat.postMessage
           token: ${{ env.SLACK_BOT_TOKEN }}
@@ -247,7 +247,7 @@ jobs:
       # Load the write token only after repository-owned code and the local release preparation
       # have completed.
       - name: Load GitHub write credentials
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -274,7 +274,7 @@ jobs:
         id: promotion_failure_slack_credentials
         if: failure() && steps.slack.outputs.ts != ''
         continue-on-error: true
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -287,7 +287,7 @@ jobs:
           steps.promotion_failure_slack_credentials.outcome == 'success' &&
           env.SLACK_BOT_TOKEN != '' &&
           steps.slack.outputs.ts != ''
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           method: chat.update
           token: ${{ env.SLACK_BOT_TOKEN }}
@@ -346,7 +346,7 @@ jobs:
           fi
 
       - name: Load GitHub credentials
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -357,7 +357,7 @@ jobs:
       # safe to retry if the runner failed before observing its response.
       - name: Create or update GitHub Release
         id: github_release
-        uses: softprops/action-gh-release@v3.0.1
+        uses: softprops/action-gh-release@v3.0.2
         with:
           token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
           tag_name: ${{ needs.Promote.outputs.release_tag }}
@@ -376,7 +376,7 @@ jobs:
         id: slack_credentials
         if: failure() && needs.Promote.outputs.slack_ts != ''
         continue-on-error: true
-        uses: 1password/load-secrets-action@v4.1.1
+        uses: 1password/load-secrets-action@v5.0.0
         with:
           export-env: true
         env:
@@ -389,7 +389,7 @@ jobs:
           steps.slack_credentials.outcome == 'success' &&
           env.SLACK_BOT_TOKEN != '' &&
           needs.Promote.outputs.slack_ts != ''
-        uses: slackapi/slack-github-action@v3.0.3
+        uses: slackapi/slack-github-action@v4.0.0
         with:
           method: chat.update
           token: ${{ env.SLACK_BOT_TOKEN }}

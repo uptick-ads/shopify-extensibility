@@ -4,7 +4,42 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    groups:
+      release-actions:
+        patterns:
+          - "1password/load-secrets-action"
+          - "slackapi/slack-github-action"
+          - "softprops/action-gh-release"
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: monthly
+    groups:
+      # Babel core and presets share a peer-major and must be validated together.
+      babel:
+        dependency-type: "development"
+        patterns:
+          - "@babel/core"
+          - "@babel/preset-*"
+      # Keep ESLint core and the deliberately selected replacement plugins in
+      # one validation PR so peer-major changes cannot land independently.
+      lint-toolchain:
+        dependency-type: "development"
+        patterns:
+          - "eslint"
+          - "@eslint/js"
+          - "@stylistic/*"
+          - "eslint-plugin-import-x"
+          - "eslint-plugin-jsx-a11y-x"
+          - "eslint-plugin-react-hooks"
+          - "eslint-plugin-react-jsx"
+          - "eslint-plugin-react-x"
+          - "globals"
+      # Shopify's quarterly API package, Preact, and signals share runtime and
+      # renderer compatibility and should move through one smoke-test cycle.
+      shopify-preact-runtime:
+        dependency-type: "development"
+        patterns:
+          - "@shopify/ui-extensions"
+          - "@preact/signals"
+          - "preact"

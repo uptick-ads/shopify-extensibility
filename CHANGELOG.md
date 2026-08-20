@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.8.20+1] - 2026-08-20
+
+### 🔧 Miscellaneous
+- Updating dependencies and workflows to latest versions
+
 ## [2026.8.4+1] - 2026-08-04
 
 ### 🔧 Miscellaneous

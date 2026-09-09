@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.9.9+2] - 2026-09-09
+
+### Chore
+- *(deps-dev)* Bump @preact/signals
+
 ## [2026.9.9+1] - 2026-09-09
 
 ### 🔧 Miscellaneous

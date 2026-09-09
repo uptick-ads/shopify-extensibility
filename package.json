@@ -22,7 +22,7 @@
     "@babel/preset-env": "^8.0.2",
     "@babel/preset-react": "^8.0.1",
     "@eslint/js": "^10.0.1",
-    "@preact/signals": "^2.3.0",
+    "@preact/signals": "^2.11.2",
     "@shopify/ui-extensions": "~2026.7.4",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@testing-library/preact": "^3.2.0",

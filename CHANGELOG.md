@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.9.9+1] - 2026-09-09
+
+### 🔧 Miscellaneous
+- Update dependabot dependencies
+
 ## [2026.8.20+1] - 2026-08-20
 
 ### 🔧 Miscellaneous

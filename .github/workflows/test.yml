@@ -54,7 +54,7 @@ jobs:
           token: ${{ env.PPX_DIGITAL_ACTIONS_PAT }}
 
       - name: Generate a changelog
-        uses: orhun/git-cliff-action@v4.8.0
+        uses: orhun/git-cliff-action@v4.9.1
         with:
           config: cliff.toml
           args: --unreleased

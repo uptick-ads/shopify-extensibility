@@ -115,7 +115,7 @@ jobs:
 
       # Always regenerate the complete unreleased set, even when main contains a stale CHANGES.md.
       - name: Generate changelog with git-cliff
-        uses: orhun/git-cliff-action@v4.8.0
+        uses: orhun/git-cliff-action@v4.9.1
         with:
           config: cliff.toml
           args: --unreleased

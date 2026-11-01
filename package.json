@@ -22,8 +22,8 @@
     "@babel/preset-env": "^8.0.6",
     "@babel/preset-react": "^8.0.1",
     "@eslint/js": "^10.0.1",
-    "@preact/signals": "^2.11.2",
-    "@shopify/ui-extensions": "~2026.7.4",
+    "@preact/signals": "^2.11.4",
+    "@shopify/ui-extensions": "~2026.10.0",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@testing-library/preact": "^3.2.0",
     "babel-jest": "^30.5.2",
@@ -37,6 +37,6 @@
     "husky": "^9.1.7",
     "jest": "^30.5.2",
     "jest-environment-jsdom": "^30.5.2",
-    "preact": "^10.10.0"
+    "preact": "^11.1.0"
   }
 }

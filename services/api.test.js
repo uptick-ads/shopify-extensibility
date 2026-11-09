@@ -436,6 +436,39 @@ describe("api", () => {
       expect(url.searchParams.get("shipping_price")).toBe("75.32");
     });
 
+    describe("discount param", () => {
+      const flowDiscountParam = async (discountApi) => {
+        const api = createApi();
+        Object.assign(api.shopApi, { discountCodes: undefined, discountAllocations: undefined, lines: undefined }, discountApi);
+        api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+        await api.getInitialOffer("order_confirmation");
+
+        return new URL(api.fetchResult.mock.calls[0][0]).searchParams.get("discount");
+      };
+
+      test("is true for a discount code", async () => {
+        expect(await flowDiscountParam({ discountCodes: { current: [{ code: "TEN_PERCENT" }] } })).toBe("true");
+      });
+
+      test("is true for an automatic order discount", async () => {
+        expect(await flowDiscountParam({ discountAllocations: { current: [{ title: "Sale" }] } })).toBe("true");
+      });
+
+      test("is true for a line item discount", async () => {
+        const lines = { current: [{ discountAllocations: [] }, { discountAllocations: [{ title: "Sale" }] }] };
+        expect(await flowDiscountParam({ lines })).toBe("true");
+      });
+
+      test("is false when the order has no discounts", async () => {
+        expect(await flowDiscountParam({ discountCodes: { current: [] }, discountAllocations: { current: [] }, lines: { current: [{ discountAllocations: [] }] } })).toBe("false");
+      });
+
+      test("is omitted when Shopify exposes no discount data", async () => {
+        expect(await flowDiscountParam({})).toBeNull();
+      });
+    });
+
     test("if placement is disabled returns with expected warning", async () => {
       const api = createApi();
       jest.spyOn(api, "offerViewedEvent").mockImplementation(() => null);

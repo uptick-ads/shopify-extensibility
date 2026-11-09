@@ -342,6 +342,7 @@ export default class Api {
     this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
     this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
     this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
+    this.addParam(url, this.orderHasDiscount(), "discount");
 
     // Customer information
     this.addParam(url, this.shopApi?.buyerIdentity?.customer?.current?.id, "customer_id");
@@ -354,6 +355,20 @@ export default class Api {
     this.addParam(url, this.shopApi?.extension?.target, "shop_target");
     this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
     this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
+  }
+
+  /**
+   * @private Returns "true" or "false" for discount targeting, or undefined when Shopify exposes no discount data.
+   */
+  orderHasDiscount() {
+    const codes = this.shopApi?.discountCodes?.current;
+    const allocations = this.shopApi?.discountAllocations?.current;
+    const lines = this.shopApi?.lines?.current;
+    if (codes == null && allocations == null && lines == null) return undefined;
+
+    // Automatic discounts have no code, and line item discounts only appear on the line.
+    const discounted = codes?.length > 0 || allocations?.length > 0 || lines?.some((line) => line.discountAllocations?.length > 0);
+    return discounted ? "true" : "false";
   }
 
   /**

@@ -91,9 +91,8 @@ export default class Api {
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
-      // The server picks the placement route when it creates the flow, so request rules need the order prices here.
-      this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
-      this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
+      // The server selects the flow's offers and route when it creates the flow, so it needs the same params as an offer request.
+      this.addShopApiParams(url);
 
       // Pass editor context if present (theme/checkout editor preview)
       if (this.shopApi?.extension?.editor) {
@@ -186,30 +185,7 @@ export default class Api {
     const url = new URL(offerURL);
 
     try {
-      // Shop information
-      this.addParam(url, this.shopApi?.shop?.id, "shop_id");
-      this.addParam(url, this.shopApi?.shop?.name, "shop_name");
-      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
-      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
-
-      // Order Price information
-      this.addParam(url, this.shopApi?.orderConfirmation?.current?.number || this.shopApi?.order?.current?.confirmationNumber, "confirmation_number");
-      this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
-      this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
-      this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
-      this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
-
-      // Customer information
-      this.addParam(url, this.shopApi?.buyerIdentity?.customer?.current?.id, "customer_id");
-
-      // Address information (may fail if shop doesn't have access)
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.zip || this.shopApi?.billingAddress?.current?.zip, "zip");
-
-      this.addParam(url, this.shopApi?.extension?.target, "shop_target");
-      this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
-      this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
+      this.addShopApiParams(url);
 
       // Add options to URL
       this.addOptionsToUrl(url);
@@ -348,6 +324,36 @@ export default class Api {
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to set shop api key", query_param_key, value } });
     }
+  }
+
+  /**
+   * @private Adds the shop, order, and customer params shared by flow and offer requests.
+   */
+  addShopApiParams(url) {
+    // Shop information
+    this.addParam(url, this.shopApi?.shop?.id, "shop_id");
+    this.addParam(url, this.shopApi?.shop?.name, "shop_name");
+    this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
+    this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
+
+    // Order Price information
+    this.addParam(url, this.shopApi?.orderConfirmation?.current?.number || this.shopApi?.order?.current?.confirmationNumber, "confirmation_number");
+    this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
+    this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
+    this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
+    this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
+
+    // Customer information
+    this.addParam(url, this.shopApi?.buyerIdentity?.customer?.current?.id, "customer_id");
+
+    // Address information (may fail if shop doesn't have access)
+    this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
+    this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");
+    this.addParam(url, this.shopApi?.shippingAddress?.current?.zip || this.shopApi?.billingAddress?.current?.zip, "zip");
+
+    this.addParam(url, this.shopApi?.extension?.target, "shop_target");
+    this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
+    this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
   }
 
   /**

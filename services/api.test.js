@@ -170,33 +170,7 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
   return api;
 }
 
-function generateFlowURL(api, placement, integrationID = null) {
-  if (isPresent(integrationID)) {
-    expect(api.flowURL).toBe(`https://api.uptick.com/places/${integrationID}/flows/new`);
-  } else {
-    expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
-  }
-
-  const url = new URL(api.flowURL);
-  url.searchParams.set("placement", placement);
-  url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
-  url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
-  url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
-  if (api.shopApi?.cost != null) {
-    url.searchParams.set("total_price", api.shopApi.cost.totalAmount.current.amount);
-    url.searchParams.set("shipping_price", api.shopApi.cost.totalShippingAmount.current.amount);
-  }
-
-  if (integrationID == null) {
-    url.searchParams.set("no_redirect", "1");
-  }
-
-  return url.toString();
-}
-
-function generateOfferURL(api) {
-  const url = new URL(offerUrlBase);
-
+function addExpectedShopApiParams(url, api) {
   if (api.shopApi?.shop?.id != null) {
     url.searchParams.set("shop_id", api.shopApi.shop.id);
   }
@@ -250,6 +224,33 @@ function generateOfferURL(api) {
   if (api.shopApi?.extension?.apiVersion != null) {
     url.searchParams.set("shop_api_version", api.shopApi.extension.apiVersion);
   }
+}
+
+function generateFlowURL(api, placement, integrationID = null) {
+  if (isPresent(integrationID)) {
+    expect(api.flowURL).toBe(`https://api.uptick.com/places/${integrationID}/flows/new`);
+  } else {
+    expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
+  }
+
+  const url = new URL(api.flowURL);
+  url.searchParams.set("placement", placement);
+  url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
+  url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
+  url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
+  addExpectedShopApiParams(url, api);
+
+  if (integrationID == null) {
+    url.searchParams.set("no_redirect", "1");
+  }
+
+  return url.toString();
+}
+
+function generateOfferURL(api) {
+  const url = new URL(offerUrlBase);
+
+  addExpectedShopApiParams(url, api);
 
   // Add options to URL
   if (api.options && typeof api.options === "object") {
@@ -410,6 +411,17 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(1);
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to get flow. Response was null.");
+    });
+
+    test("sends customer and name on the flow request so targeting applies", async () => {
+      const api = createApi();
+      api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+      await api.getInitialOffer("order_confirmation");
+
+      const url = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(url.searchParams.get("customer_id")).toBe(String(api.shopApi.buyerIdentity.customer.current.id));
+      expect(url.searchParams.get("first_name")).toBe(api.shopApi.shippingAddress.current.firstName);
     });
 
     test("sends a zero total on the flow request so $0 orders can match a route", async () => {

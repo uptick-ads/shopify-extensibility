@@ -182,6 +182,10 @@ function generateFlowURL(api, placement, integrationID = null) {
   url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
   url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
   url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
+  if (api.shopApi?.cost != null) {
+    url.searchParams.set("total_price", api.shopApi.cost.totalAmount.current.amount);
+    url.searchParams.set("shipping_price", api.shopApi.cost.totalShippingAmount.current.amount);
+  }
 
   if (integrationID == null) {
     url.searchParams.set("no_redirect", "1");
@@ -406,6 +410,18 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(1);
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to get flow. Response was null.");
+    });
+
+    test("sends a zero total on the flow request so $0 orders can match a route", async () => {
+      const api = createApi();
+      api.shopApi.cost.totalAmount.current.amount = 0;
+      api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+      await api.getInitialOffer("order_confirmation");
+
+      const url = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(url.searchParams.get("total_price")).toBe("0");
+      expect(url.searchParams.get("shipping_price")).toBe("75.32");
     });
 
     test("if placement is disabled returns with expected warning", async () => {

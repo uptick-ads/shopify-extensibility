@@ -91,6 +91,10 @@ export default class Api {
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
+      // The server picks the placement route when it creates the flow, so request rules need the order prices here.
+      this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
+      this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
+
       // Pass editor context if present (theme/checkout editor preview)
       if (this.shopApi?.extension?.editor) {
         // await new Promise(resolve => setTimeout(resolve, 100000));

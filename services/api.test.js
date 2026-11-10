@@ -436,6 +436,20 @@ describe("api", () => {
       expect(url.searchParams.get("shipping_price")).toBe("75.32");
     });
 
+    test("still requests the flow when protected customer data throws", async () => {
+      const api = createApi();
+      Object.defineProperty(api.shopApi, "shippingAddress", { get: () => { throw new Error("Protected customer data"); } });
+      api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+      await api.getInitialOffer("order_confirmation");
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+      const url = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(url.searchParams.get("placement")).toBe("order_confirmation");
+      expect(url.searchParams.get("customer_id")).toBe(String(api.shopApi.buyerIdentity.customer.current.id));
+      expect(api.captureException).toHaveBeenCalledWith(expect.any(Error), { extra: { message: "Unable to get shop api information" } });
+    });
+
     describe("discount param", () => {
       const flowDiscountParam = async (discountApi) => {
         const api = createApi();

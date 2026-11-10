@@ -92,7 +92,12 @@ export default class Api {
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
       // The server selects the flow's offers and route when it creates the flow, so it needs the same params as an offer request.
-      this.addShopApiParams(url);
+      // Best-effort as in getOfferBase, since reading protected customer data can throw and must not block the flow.
+      try {
+        this.addShopApiParams(url);
+      } catch (error) {
+        this.captureException(error, { extra: { message: "Unable to get shop api information" } });
+      }
 
       // Pass editor context if present (theme/checkout editor preview)
       if (this.shopApi?.extension?.editor) {

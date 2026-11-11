@@ -86,10 +86,6 @@ export default class Api {
 
     try {
       this.addParam(url, placement, "placement");
-      this.addParam(url, this.shopApi.shop.myshopifyDomain, "shop_myshopify_domain");
-
-      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
-      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
       // The server selects the flow's offers and route when it creates the flow, so it needs the same params as an offer request.
       // Best-effort as in getOfferBase, since reading protected customer data can throw and must not block the flow.
@@ -336,6 +332,7 @@ export default class Api {
    */
   addShopApiParams(url) {
     // Shop information
+    this.addParam(url, this.shopApi?.shop?.myshopifyDomain, "shop_myshopify_domain");
     this.addParam(url, this.shopApi?.shop?.id, "shop_id");
     this.addParam(url, this.shopApi?.shop?.name, "shop_name");
     this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
@@ -366,14 +363,20 @@ export default class Api {
    * @private Returns "true" or "false" for discount targeting, or undefined when Shopify exposes no discount data.
    */
   orderHasDiscount() {
-    const codes = this.shopApi?.discountCodes?.current;
-    const allocations = this.shopApi?.discountAllocations?.current;
-    const lines = this.shopApi?.lines?.current;
-    if (codes == null && allocations == null && lines == null) return undefined;
+    // Discounts are read from three Shopify APIs and walk every line, so a failure here is reported on its own and must not stop the params after it.
+    try {
+      const codes = this.shopApi?.discountCodes?.current;
+      const allocations = this.shopApi?.discountAllocations?.current;
+      const lines = this.shopApi?.lines?.current;
+      if (codes == null && allocations == null && lines == null) return undefined;
 
-    // Automatic discounts have no code, and line item discounts only appear on the line.
-    const discounted = codes?.length > 0 || allocations?.length > 0 || lines?.some((line) => line.discountAllocations?.length > 0);
-    return discounted ? "true" : "false";
+      // Automatic discounts have no code, and line item discounts only appear on the line.
+      const discounted = codes?.length > 0 || allocations?.length > 0 || lines?.some((line) => line.discountAllocations?.length > 0);
+      return discounted ? "true" : "false";
+    } catch (error) {
+      this.captureException(error, { extra: { message: "Unable to read order discounts" } });
+      return undefined;
+    }
   }
 
   /**

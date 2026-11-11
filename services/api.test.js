@@ -171,6 +171,9 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
 }
 
 function addExpectedShopApiParams(url, api) {
+  if (api.shopApi?.shop?.myshopifyDomain != null) {
+    url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
+  }
   if (api.shopApi?.shop?.id != null) {
     url.searchParams.set("shop_id", api.shopApi.shop.id);
   }
@@ -235,9 +238,6 @@ function generateFlowURL(api, placement, integrationID = null) {
 
   const url = new URL(api.flowURL);
   url.searchParams.set("placement", placement);
-  url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
-  url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
-  url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
   addExpectedShopApiParams(url, api);
 
   if (integrationID == null) {
@@ -480,6 +480,20 @@ describe("api", () => {
 
       test("is omitted when Shopify exposes no discount data", async () => {
         expect(await flowDiscountParam({})).toBeNull();
+      });
+
+      test("is omitted and reported when reading discounts throws, without dropping the params after it", async () => {
+        const api = createApi();
+        Object.defineProperty(api.shopApi, "discountCodes", { get: () => { throw new Error("Discounts unavailable"); } });
+        api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+        await api.getInitialOffer("order_confirmation");
+
+        const url = new URL(api.fetchResult.mock.calls[0][0]);
+        expect(url.searchParams.get("discount")).toBeNull();
+        expect(url.searchParams.get("customer_id")).toBe(String(api.shopApi.buyerIdentity.customer.current.id));
+        expect(url.searchParams.get("zip")).toBe(api.shopApi.shippingAddress.current.zip);
+        expect(api.captureException).toHaveBeenCalledWith(expect.any(Error), { extra: { message: "Unable to read order discounts" } });
       });
     });
 

@@ -10,7 +10,7 @@ const MAX_REDIRECTS = 3;
 const OFFER_VIEWED_CAPTURE_SAMPLE_RATE = 0.1;
 const FETCH_TIMEOUT_MS = 8000;
 const INTEGRATION_TYPE = "shopify_extensibility";
-const INTEGRATION_VERSION = "1.1.0";
+const INTEGRATION_VERSION = "1.2.0";
 const EXPECTED_EMPTY_RESULT_HTTP_STATUSES = new Set([403, 410, 422]);
 const EXPECTED_EMPTY_RESULT_ERROR_CODES = new Set([
   "placement_disabled",
@@ -221,7 +221,8 @@ export default class Api {
       return false;
     }
 
-    const offerData = offerResult.data.find((item) => item.type === "offer");
+    // A survey stands in for the next offer and renders the same way, so the flow treats it as one.
+    const offerData = offerResult.data.find((item) => item.type === "offer" || item.type === "survey");
     if (offerData == null) {
       // No more offers
       return false;
@@ -234,17 +235,47 @@ export default class Api {
 
     offerData.links = offerResult.links;
     // Send without blocking
-    Promise.resolve(this.offerViewedEvent(offerResult)).catch((error) => {
+    Promise.resolve(this.offerViewedEvent(offerResult, offerData)).catch((error) => {
       this.captureException(error, { extra: { message: "Unhandled error in offerViewedEvent" } });
     });
     return offerData;
   }
 
   /**
+   * Posts an event a segment declares (`{url, ev, data}`) with the field values the shopper entered.
+   * The values go in a form body, which keeps the shopper's comment out of the URL and needs no CORS preflight.
+   * Resolves to whether the post succeeded; fetchResult has already reported a failure.
+   */
+  async postEvent(event, values = {}) {
+    if (isEmpty(event?.url) || isEmpty(event?.ev)) {
+      this.captureWarning("Segment event was missing its url or ev.");
+      return false;
+    }
+
+    const body = new URLSearchParams();
+    body.set("ev", event.ev);
+    Object.entries({ ...(event.data || {}), ...values }).forEach(([key, value]) => {
+      if (isPresent(value)) {
+        body.set(`data[${key}]`, String(value));
+      }
+    });
+
+    const [, context] = await this.fetchResult(event.url, {
+      method: "POST",
+      setLoader: this.noop,
+      parseJson: false,
+      body,
+    });
+    return context?.error == null && (context?.responseStatus == null || context.responseStatus < 400);
+  }
+
+  /**
    * @private Fire-and-forget telemetry helper used by getOfferBase.
    */
-  async offerViewedEvent(offerResult) {
-    if (isEmpty(offerResult?.links?.offer_event)) {
+  async offerViewedEvent(offerResult, item = null) {
+    // An item declares its own view event; offers from servers that predate `events` fall back to `links.offer_event`.
+    const view = item?.events?.view ?? { url: offerResult?.links?.offer_event, ev: "offer_viewed" };
+    if (isEmpty(view.url) || isEmpty(view.ev)) {
       this.captureWarning("Unable to find offer event link from offer.");
       return;
     }
@@ -253,19 +284,19 @@ export default class Api {
       level: "warning",
       extra: {
         non_blocking: true,
-        telemetry_event: "offer_viewed",
+        telemetry_event: view.ev,
       },
       tags: {
         "uptick.non_blocking": "true",
         "uptick.request_importance": "telemetry",
-        "uptick.telemetry_event": "offer_viewed",
+        "uptick.telemetry_event": view.ev,
       },
     };
 
     try {
-      let url = new URL(offerResult.links.offer_event);
+      let url = new URL(view.url);
 
-      this.addParam(url, "offer_viewed", "ev"); // Event Type
+      this.addParam(url, view.ev, "ev"); // Event Type
       this.addParam(url, this.getTimeStamp(), "ts"); // Current Timestamp
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl"); // Location
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl"); // Referrer
@@ -515,6 +546,7 @@ export default class Api {
     captureFailureSampleRate = 1,
     fetchTimeoutMs = FETCH_TIMEOUT_MS,
     fetchFunction = this.fetchFunction,
+    body,
   } = {}) {
     const normalizedMethod = (method ?? "GET").toUpperCase();
     const requestUrl = this.urlWithIntegrationParams(url);
@@ -536,7 +568,8 @@ export default class Api {
         signal: abortTimeout.signal,
         headers: {
           Accept: "application/json",
-        }
+        },
+        ...(body == null ? {} : { body }),
       });
 
       if (rawResult?.ok === false) {

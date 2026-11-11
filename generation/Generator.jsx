@@ -27,7 +27,12 @@ function Item({ item, options, level, parentIndex, logInfo, logWarn }) {
         advancing.current = true;
         if (before != null) {
           setPosting(true);
-          await before();
+          // A failed event still advances, so a postEvent that rejects can't leave the item locked.
+          try {
+            await before();
+          } catch {
+            // postEvent reports its own failures.
+          }
         }
         options.nextOffer(url);
       },

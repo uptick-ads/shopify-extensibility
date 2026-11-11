@@ -86,6 +86,17 @@ describe("survey item", () => {
     expect(values).toEqual({ reason: "spam", comment: "Too many popups" });
   });
 
+  test("submitting still follows the next offer when postEvent rejects", async () => {
+    postEvent = jest.fn().mockRejectedValue(new TypeError("postEvent failed"));
+    const { container } = renderSurvey();
+    fireEvent.click(reason(container, "Felt like spam"));
+
+    await act(async () => fireEvent.click(submit(container, "Report Ad")));
+
+    await waitFor(() => expect(nextOffer).toHaveBeenCalledWith(nextOfferUrl));
+    expect(postEvent).toHaveBeenCalledTimes(1);
+  });
+
   test("submitting with no reason moves on without recording feedback", async () => {
     const { container } = renderSurvey();
 

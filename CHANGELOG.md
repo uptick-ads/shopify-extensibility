@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.11.11+1] - 2026-11-11
+
+### 🚀 Added
+- Send order prices when creating a flow
+
 ## [2026.10.1+1] - 2026-10-01
 
 ### 🔧 Miscellaneous

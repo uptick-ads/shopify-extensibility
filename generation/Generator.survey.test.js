@@ -93,6 +93,38 @@ describe("survey item", () => {
     expect(postEvent).toHaveBeenCalledTimes(0);
   });
 
+  test("while feedback posts, Submit and Skip are disabled and the item advances only once", async () => {
+    let finishPost;
+    postEvent = jest.fn(() => new Promise((resolve) => { finishPost = resolve; }));
+    const { container } = renderSurvey();
+    fireEvent.click(reason(container, "Not interested"));
+    const skip = () => Array.from(container.querySelectorAll("s-clickable")).find((node) => node.textContent === "Skip");
+
+    await act(async () => fireEvent.click(submit(container, "Give Feedback")));
+    expect(submit(container, "Give Feedback").hasAttribute("disabled")).toBe(true);
+    expect(skip().hasAttribute("disabled")).toBe(true);
+    await act(async () => {
+      fireEvent.click(submit(container, "Give Feedback"));
+      fireEvent.click(skip());
+    });
+    await act(async () => finishPost(true));
+
+    expect(postEvent).toHaveBeenCalledTimes(1);
+    expect(nextOffer).toHaveBeenCalledTimes(1);
+  });
+
+  test("a different survey in the same place starts with no answers", () => {
+    const { container, rerender } = renderSurvey();
+    fireEvent.click(reason(container, "Felt like spam"));
+    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("primary");
+
+    const other = JSON.parse(JSON.stringify(survey.children));
+    other[0].children[0].data.item_id = "srv_another";
+    rerender(generate({ items: other, options: { loading: false, nextOffer, postEvent } }));
+
+    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("secondary");
+  });
+
   test("leaves out the offer footer", () => {
     const { container } = renderSurvey();
     expect(container.textContent).not.toContain("Powered by");

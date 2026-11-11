@@ -1,6 +1,6 @@
 import { isEmpty } from "../utilities/present.js";
 import { createElement } from "preact";
-import { useState } from "preact/hooks";
+import { useRef, useState } from "preact/hooks";
 import { holds, visibleValues } from "./interactions.js";
 
 function resolveTag(type) {
@@ -11,12 +11,26 @@ function resolveTag(type) {
 // It renders its own node again with `itemScope` set, which every node below it reads to find those values.
 function Item({ item, options, level, parentIndex, logInfo, logWarn }) {
   const [fields, setFields] = useState({});
+  const [posting, setPosting] = useState(false);
+  // A ref rather than state, so a second click in the same tick already sees the first one's lock.
+  const advancing = useRef(false);
   const itemOptions = {
     ...options,
     itemScope: {
       root: item,
       fields,
       setField: (name, value) => setFields((current) => ({ ...current, [name]: value })),
+      posting,
+      // Every link in the item leads to the same next offer, so once one is clicked the others do nothing and the item advances only once.
+      advance: async (url, before) => {
+        if (advancing.current) return;
+        advancing.current = true;
+        if (before != null) {
+          setPosting(true);
+          await before();
+        }
+        options.nextOffer(url);
+      },
     },
   };
   return renderItem({ item, options: itemOptions, level, parentIndex, logInfo, logWarn });
@@ -49,23 +63,21 @@ function buildProps({ item, options }) {
 
   if (item.url != null) {
     const { loading, nextOffer, postEvent } = options;
-    if (loading != null) {
-      props.disabled = loading;
-      props.loading = loading;
+    // An item's links stay disabled while its event posts, since nextOffer's loading only starts once the post is done.
+    const busy = loading || scope?.posting;
+    if (busy != null) {
+      props.disabled = busy;
+      props.loading = busy;
     }
-    if (nextOffer != null) {
-      const click = scope != null ? item.events?.click : null;
-      if (click != null && postEvent != null) {
-        // A failed event still moves the shopper on; postEvent has already reported it.
-        props.onClick = async () => {
-          if (holds(click.send_when, scope.fields)) {
-            await postEvent(click, visibleValues(scope.root, click.fields || [], scope.fields));
-          }
-          nextOffer(item.url);
-        };
-      } else {
-        props.onClick = () => nextOffer(item.url);
-      }
+    if (nextOffer != null && scope != null) {
+      const click = item.events?.click;
+      // A failed event still moves the shopper on; postEvent has already reported it.
+      const send = click != null && postEvent != null && holds(click.send_when, scope.fields)
+        ? () => postEvent(click, visibleValues(scope.root, click.fields || [], scope.fields))
+        : null;
+      props.onClick = () => scope.advance(item.url, send);
+    } else if (nextOffer != null) {
+      props.onClick = () => nextOffer(item.url);
     }
   }
 
@@ -77,7 +89,8 @@ function renderItem({ item, options, level, parentIndex, logInfo, logWarn }) {
 
   // An item node seen for the first time goes to Item, which sets up its field values and renders this node again inside that scope.
   if (scope == null && item.data?.target === "item") {
-    return createElement(Item, { item, options, level, parentIndex, logInfo, logWarn });
+    // Keyed by the item's id so a different item in the same place starts with empty fields instead of the last one's answers.
+    return createElement(Item, { key: item.data?.item_id, item, options, level, parentIndex, logInfo, logWarn });
   }
 
   // Inside an item, a node whose `show_when` doesn't hold for the current field values renders nothing, nor do its children.

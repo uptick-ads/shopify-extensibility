@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.11.11+2] - 2026-11-11
+
+### 🐛 Fixed
+- Keep a discount read failure from dropping later shop params
+
 ## [2026.11.11+1] - 2026-11-11
 
 ### 🚀 Added

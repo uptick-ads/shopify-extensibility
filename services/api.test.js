@@ -3,9 +3,11 @@ import {
   expect,
   test,
   jest,
-  afterAll
+  afterAll,
+  beforeEach
 } from "@jest/globals";
 import Api from "./api";
+import { stageSubmission, takeSubmission } from "./submission";
 import { isPresent } from "../utilities/present";
 
 const offerUrlBase = "https://api.uptick.com/v1/places/place-id/flows/flow-id/offers/new?event_id=event-id&index=0";
@@ -1955,6 +1957,8 @@ describe("api", () => {
 });
 
 describe("survey items", () => {
+  beforeEach(() => takeSubmission(null));
+
   const surveyResponse = require("../generation/fixtures/survey_decline.json");
 
   test("getOfferBase returns a survey item and sends its view through the same path as an offer", async () => {
@@ -1966,34 +1970,79 @@ describe("survey items", () => {
 
     expect(result.type).toBe("survey");
     expect(result.children).toEqual(surveyResponse.data[0].children);
-    expect(api.offerViewedEvent).toHaveBeenCalledWith(surveyResponse, result);
+    expect(result.links).toEqual(surveyResponse.links);
+    expect(api.offerViewedEvent).toHaveBeenCalledWith(result);
   });
 
   test("offerViewedEvent posts the item's declared view event with the usual context", async () => {
     const api = createApi();
     jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple("result"));
     jest.spyOn(api, "getTimeStamp").mockImplementation(() => "timestamp1234");
-    const item = surveyResponse.data[0];
+    const item = { ...surveyResponse.data[0], links: { offer_event: "https://api.uptick.com/old-offer-event" } };
 
-    await api.offerViewedEvent({ links: { offer_event: "https://api.uptick.com/old-offer-event" } }, item);
+    await api.offerViewedEvent(item);
 
     const [url, options] = api.fetchResult.mock.calls[0];
     const sent = new URL(url);
-    expect(`${sent.origin}${sent.pathname}`).toBe(new URL(item.events.view.url).origin + new URL(item.events.view.url).pathname);
+    const view = new URL(item.events.view.url);
+    expect(`${sent.origin}${sent.pathname}`).toBe(`${view.origin}${view.pathname}`);
     expect(sent.searchParams.get("ev")).toBe("survey_viewed");
     expect(sent.searchParams.get("ts")).toBe("timestamp1234");
     expect(options.captureContext.extra.telemetry_event).toBe("survey_viewed");
   });
 
-  test("offerViewedEvent falls back to links.offer_event for an offer without events", async () => {
+  test("offerViewedEvent falls back to the item's links.offer_event for an offer without events", async () => {
     const api = createApi();
     jest.spyOn(api, "fetchResult").mockImplementation(() => fetchTuple("result"));
 
-    await api.offerViewedEvent({ links: { offer_event: "https://api.uptick.com/old-offer-event" } }, { type: "offer", children: [] });
+    await api.offerViewedEvent({ type: "offer", children: [], links: { offer_event: "https://api.uptick.com/old-offer-event" } });
 
     const sent = new URL(api.fetchResult.mock.calls[0][0]);
     expect(sent.pathname).toBe("/old-offer-event");
     expect(sent.searchParams.get("ev")).toBe("offer_viewed");
+  });
+
+  test("getNextOffer posts a staged event and fetches the next offer without waiting for it", async () => {
+    const api = createApi(false);
+    api.flow = true;
+    let finishPost;
+    jest.spyOn(api, "postEvent").mockImplementation(() => new Promise((resolve) => { finishPost = resolve; }));
+    jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+    const event = { url: "https://api.uptick.com/events", ev: "offer_feedback", data: { source: "decline" } };
+    stageSubmission(offerUrlBase, { event, values: { reason: "spam" } });
+
+    const result = await api.getNextOffer(offerUrlBase);
+
+    expect(result).toBe("offer");
+    expect(api.postEvent).toHaveBeenCalledWith(event, { reason: "spam" });
+    expect(api.getOfferBase).toHaveBeenCalledWith(offerUrlBase, { method: "GET", setLoader: api.setLoading });
+    expect(takeSubmission(offerUrlBase)).toBeNull();
+    finishPost(true);
+  });
+
+  test("getNextOffer still returns the next offer when the staged event rejects", async () => {
+    const api = createApi(false);
+    api.flow = true;
+    jest.spyOn(api, "postEvent").mockRejectedValue(new TypeError("postEvent failed"));
+    jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+    stageSubmission(offerUrlBase, { event: { url: "https://api.uptick.com/events", ev: "offer_feedback" }, values: {} });
+
+    expect(await api.getNextOffer(offerUrlBase)).toBe("offer");
+    await Promise.resolve();
+    expect(api.captureException).toHaveBeenCalledWith(expect.any(TypeError), { extra: { message: "Unhandled error in postEvent" } });
+  });
+
+  test("getNextOffer ignores and clears an event staged for a different URL", async () => {
+    const api = createApi(false);
+    api.flow = true;
+    jest.spyOn(api, "postEvent");
+    jest.spyOn(api, "getOfferBase").mockImplementation(() => "offer");
+    stageSubmission(offerUrlBase, { event: { url: "https://api.uptick.com/events", ev: "offer_feedback" }, values: {} });
+
+    await api.getNextOffer("reject_url");
+
+    expect(api.postEvent).toHaveBeenCalledTimes(0);
+    expect(takeSubmission(offerUrlBase)).toBeNull();
   });
 
   test("postEvent sends the event and field values as a form body, never in the URL", async () => {
@@ -2022,11 +2071,12 @@ describe("survey items", () => {
     const fetchFunction = jest.fn().mockResolvedValue({ ok: true, status: 201, body: null });
     api.fetchFunction = fetchFunction;
 
-    await api.postEvent({ url: "https://api.uptick.com/events", ev: "survey_viewed" });
+    await api.postEvent({ url: "https://api.uptick.com/events", ev: "offer_feedback" }, { reason: "spam" });
 
     const [, init] = fetchFunction.mock.calls[0];
     expect(init.method).toBe("POST");
-    expect(init.body.get("ev")).toBe("survey_viewed");
+    expect(init.body.get("ev")).toBe("offer_feedback");
+    expect(init.body.get("data[reason]")).toBe("spam");
   });
 
   test("postEvent resolves false when the post failed", async () => {

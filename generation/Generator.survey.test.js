@@ -4,8 +4,9 @@
 
 import generate from "./Generator.jsx";
 import { holds, visibleValues } from "./interactions.js";
+import { takeSubmission } from "../services/submission.js";
 import { beforeEach, describe, expect, jest, test } from "@jest/globals";
-import { act, fireEvent, render, waitFor } from "@testing-library/preact";
+import { fireEvent, render } from "@testing-library/preact";
 
 // The survey the API returns after a decline, captured from Api::V1::FeedbackSurveyTest.
 const surveyResponse = require("./fixtures/survey_decline.json");
@@ -14,23 +15,33 @@ const nextOfferUrl = survey.children[0].children[0].data.next_offer;
 
 const reason = (container, label) => Array.from(container.querySelectorAll("s-press-button")).find((node) => node.textContent === label);
 const submit = (container, label) => Array.from(container.querySelectorAll("s-button")).find((node) => node.textContent === label);
+const skip = (container) => Array.from(container.querySelectorAll("s-clickable")).find((node) => node.textContent === "Skip");
+
+// The offer_feedback event Report Ad and Give Feedback declare; every link in the survey leads to the same next offer.
+const findNode = (node, test) => test(node) ? node : (node.children || []).map((child) => findNode(child, test)).find(Boolean);
+const feedbackEvent = findNode(survey, (node) => node.events?.click != null).events.click;
 
 describe("survey item", () => {
   let nextOffer;
-  let postEvent;
 
   beforeEach(() => {
     nextOffer = jest.fn();
-    postEvent = jest.fn().mockResolvedValue(true);
+    takeSubmission(null); // Clears anything an earlier test staged.
   });
 
-  const renderSurvey = (options = {}) => render(generate({ items: survey.children, options: { loading: false, nextOffer, postEvent, ...options } }));
+  // The host's nextOffer only gets the URL; the click's event is staged for Api.getNextOffer to post.
+  const expectFollowed = (submission) => {
+    expect(nextOffer).toHaveBeenCalledWith(nextOfferUrl);
+    expect(takeSubmission(nextOfferUrl)).toEqual(submission);
+  };
 
-  test("renders the survey without posting its view, which the API layer sends for every item", () => {
+  const renderSurvey = (options = {}) => render(generate({ items: survey.children, options: { loading: false, nextOffer, ...options } }));
+
+  test("renders the survey without following any link", () => {
     const { container } = renderSurvey();
 
     expect(container.querySelector("s-heading").textContent).toBe("How did you feel about this Glowbird offer?");
-    expect(postEvent).toHaveBeenCalledTimes(0);
+    expect(nextOffer).toHaveBeenCalledTimes(0);
   });
 
   test("a reason is pressed while picked, which assistive technology announces, and clears on a second click", () => {
@@ -49,7 +60,7 @@ describe("survey item", () => {
     const items = [{ type: "box", data: { target: "item", item_id: "srv_1" }, children: [
       { type: "button", text: "Spam", field: { name: "reason", value: "spam" }, attributes: { variant: "secondary", selected: { variant: "primary" } } },
     ] }];
-    const { container } = render(generate({ items, options: { loading: false, nextOffer, postEvent } }));
+    const { container } = render(generate({ items, options: { loading: false, nextOffer } }));
     const button = container.querySelector("s-button");
     expect(button.getAttribute("variant")).toBe("secondary");
     expect(button.hasAttribute("selected")).toBe(false);
@@ -70,71 +81,68 @@ describe("survey item", () => {
     expect(submit(container, "Give Feedback")).toBeUndefined();
   });
 
-  test("submitting posts offer_feedback with the reason, comment and source, then follows the next offer", async () => {
+  test("submitting stages offer_feedback with the reason and comment, then follows the next offer", () => {
     const { container } = renderSurvey();
     fireEvent.click(reason(container, "Felt like spam"));
     const comment = container.querySelector("s-text-area");
     comment.value = "Too many popups";
     fireEvent.input(comment);
 
-    await act(async () => fireEvent.click(submit(container, "Report Ad")));
+    fireEvent.click(submit(container, "Report Ad"));
 
-    await waitFor(() => expect(nextOffer).toHaveBeenCalledWith(nextOfferUrl));
-    const [event, values] = postEvent.mock.calls[0];
-    expect(event.ev).toBe("offer_feedback");
-    expect(event.data).toEqual({ source: "decline" });
-    expect(values).toEqual({ reason: "spam", comment: "Too many popups" });
+    expect(nextOffer).toHaveBeenCalledTimes(1);
+    expectFollowed({ event: feedbackEvent, values: { reason: "spam", comment: "Too many popups" } });
+    expect(feedbackEvent.ev).toBe("offer_feedback");
+    expect(feedbackEvent.data).toEqual({ source: "decline" });
   });
 
-  test("submitting still follows the next offer when postEvent rejects", async () => {
-    postEvent = jest.fn().mockRejectedValue(new TypeError("postEvent failed"));
+  test("a comment whose box was hidden again isn't sent", () => {
+    const { container } = renderSurvey();
+    fireEvent.click(reason(container, "Offer unclear"));
+    const comment = container.querySelector("s-text-area");
+    comment.value = "Confusing";
+    fireEvent.input(comment);
+    fireEvent.click(reason(container, "Good fit"));
+
+    fireEvent.click(submit(container, "Give Feedback"));
+
+    expectFollowed({ event: feedbackEvent, values: { reason: "good_fit" } });
+  });
+
+  test("submitting with no reason follows the next offer without sending feedback, since send_when doesn't hold", () => {
+    const { container } = renderSurvey();
+
+    fireEvent.click(submit(container, "Give Feedback"));
+
+    expectFollowed(null);
+  });
+
+  test("Skip follows the next offer without sending feedback", () => {
     const { container } = renderSurvey();
     fireEvent.click(reason(container, "Felt like spam"));
 
-    await act(async () => fireEvent.click(submit(container, "Report Ad")));
+    fireEvent.click(skip(container));
 
-    await waitFor(() => expect(nextOffer).toHaveBeenCalledWith(nextOfferUrl));
-    expect(postEvent).toHaveBeenCalledTimes(1);
+    expectFollowed(null);
   });
 
-  test("submitting with no reason moves on without recording feedback", async () => {
-    const { container } = renderSurvey();
-
-    await act(async () => fireEvent.click(submit(container, "Give Feedback")));
-
-    await waitFor(() => expect(nextOffer).toHaveBeenCalledWith(nextOfferUrl));
-    expect(postEvent).toHaveBeenCalledTimes(0);
-  });
-
-  test("Skip moves on without recording feedback", async () => {
-    const { container } = renderSurvey();
-    fireEvent.click(reason(container, "Felt like spam"));
-
-    const skip = Array.from(container.querySelectorAll("s-clickable")).find((node) => node.textContent === "Skip");
-    await act(async () => fireEvent.click(skip));
-
-    expect(nextOffer).toHaveBeenCalledWith(nextOfferUrl);
-    expect(postEvent).toHaveBeenCalledTimes(0);
-  });
-
-  test("while feedback posts, Submit and Skip are disabled and the item advances only once", async () => {
-    let finishPost;
-    postEvent = jest.fn(() => new Promise((resolve) => { finishPost = resolve; }));
+  test("a double click follows only once, so feedback isn't sent twice", () => {
     const { container } = renderSurvey();
     fireEvent.click(reason(container, "Not interested"));
-    const skip = () => Array.from(container.querySelectorAll("s-clickable")).find((node) => node.textContent === "Skip");
 
-    await act(async () => fireEvent.click(submit(container, "Give Feedback")));
-    expect(submit(container, "Give Feedback").hasAttribute("disabled")).toBe(true);
-    expect(skip().hasAttribute("disabled")).toBe(true);
-    await act(async () => {
-      fireEvent.click(submit(container, "Give Feedback"));
-      fireEvent.click(skip());
-    });
-    await act(async () => finishPost(true));
+    fireEvent.click(submit(container, "Give Feedback"));
+    fireEvent.click(submit(container, "Give Feedback"));
+    fireEvent.click(skip(container));
 
-    expect(postEvent).toHaveBeenCalledTimes(1);
     expect(nextOffer).toHaveBeenCalledTimes(1);
+    expectFollowed({ event: feedbackEvent, values: { reason: "not_relevant" } });
+  });
+
+  test("while the next offer loads, Submit and Skip are disabled", () => {
+    const { container } = renderSurvey({ loading: true });
+
+    expect(submit(container, "Give Feedback").hasAttribute("disabled")).toBe(true);
+    expect(skip(container).hasAttribute("disabled")).toBe(true);
   });
 
   test("a different survey in the same place starts with no answers", () => {
@@ -144,7 +152,7 @@ describe("survey item", () => {
 
     const other = JSON.parse(JSON.stringify(survey.children));
     other[0].children[0].data.item_id = "srv_another";
-    rerender(generate({ items: other, options: { loading: false, nextOffer, postEvent } }));
+    rerender(generate({ items: other, options: { loading: false, nextOffer } }));
 
     expect(reason(container, "Felt like spam").hasAttribute("pressed")).toBe(false);
   });

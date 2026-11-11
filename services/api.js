@@ -1,4 +1,5 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
+import { takeSubmission } from "./submission.js";
 import {
   buildFetchFailureContext,
   documentVisibilityContext,
@@ -150,7 +151,20 @@ export default class Api {
     }
   }
 
+  /**
+   * Follows a next-offer link. If the link staged an event for this URL (such as a survey's feedback), it posts
+   * alongside the request for the next offer without holding it up.
+   */
   async getNextOffer(nextOfferURL) {
+    // Taken first so a call that fails its checks below still clears what was staged.
+    const submission = takeSubmission(nextOfferURL);
+    if (submission != null) {
+      // A failed event never keeps the shopper from the next offer; postEvent has already reported it.
+      Promise.resolve(this.postEvent(submission.event, submission.values)).catch((error) => {
+        this.captureException(error, { extra: { message: "Unhandled error in postEvent" } });
+      });
+    }
+
     if (this.shopApi == null) {
       this.captureException(new Error("Shop API is required."));
       return false;
@@ -235,14 +249,14 @@ export default class Api {
 
     offerData.links = offerResult.links;
     // Send without blocking
-    Promise.resolve(this.offerViewedEvent(offerResult, offerData)).catch((error) => {
+    Promise.resolve(this.offerViewedEvent(offerData)).catch((error) => {
       this.captureException(error, { extra: { message: "Unhandled error in offerViewedEvent" } });
     });
     return offerData;
   }
 
   /**
-   * Posts an event a segment declares (`{url, ev, data}`) with the field values the shopper entered.
+   * @private Posts an event a segment declares (`{url, ev, data}`) with the field values the shopper entered.
    * The values go in a form body, which keeps the shopper's comment out of the URL and needs no CORS preflight.
    * Resolves to whether the post succeeded; fetchResult has already reported a failure.
    */
@@ -271,10 +285,11 @@ export default class Api {
 
   /**
    * @private Fire-and-forget telemetry helper used by getOfferBase.
+   * Takes the item getOfferBase returns, which already carries the response's `links`.
    */
-  async offerViewedEvent(offerResult, item = null) {
+  async offerViewedEvent(item) {
     // An item declares its own view event; offers from servers that predate `events` fall back to `links.offer_event`.
-    const view = item?.events?.view ?? { url: offerResult?.links?.offer_event, ev: "offer_viewed" };
+    const view = item?.events?.view ?? { url: item?.links?.offer_event, ev: "offer_viewed" };
     if (isEmpty(view.url) || isEmpty(view.ev)) {
       this.captureWarning("Unable to find offer event link from offer.");
       return;

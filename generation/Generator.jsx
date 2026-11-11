@@ -2,6 +2,7 @@ import { isEmpty } from "../utilities/present.js";
 import { createElement } from "preact";
 import { useRef, useState } from "preact/hooks";
 import { holds, visibleValues } from "./interactions.js";
+import { stageSubmission } from "../services/submission.js";
 
 function resolveTag(type) {
   return type.startsWith("s-") ? type : `s-${type}`;
@@ -11,31 +12,23 @@ function resolveTag(type) {
 // It renders its own node again with `itemScope` set, which every node below it reads to find those values.
 function Item({ item, options, level, parentIndex, logInfo, logWarn }) {
   const [fields, setFields] = useState({});
-  const [posting, setPosting] = useState(false);
-  // A ref rather than state, so a second click in the same tick already sees the first one's lock.
-  const advancing = useRef(false);
+  // A ref rather than state, so a second click in the same tick, before `loading` disables the links, already sees the lock.
+  // It never resets: following a link replaces this item, and a new item (keyed by id) starts unlocked.
+  const following = useRef(false);
   const itemOptions = {
     ...options,
+    // Every link in the item replaces it, so only the first click goes through; a double click can't send its event twice.
+    // The host's nextOffer only takes a URL, so the click's event is staged for Api.getNextOffer to post.
+    nextOffer: options.nextOffer && ((url, submission = null) => {
+      if (following.current) return;
+      following.current = true;
+      stageSubmission(url, submission);
+      options.nextOffer(url);
+    }),
     itemScope: {
       root: item,
       fields,
       setField: (name, value) => setFields((current) => ({ ...current, [name]: value })),
-      posting,
-      // Every link in the item leads to the same next offer, so once one is clicked the others do nothing and the item advances only once.
-      advance: async (url, before) => {
-        if (advancing.current) return;
-        advancing.current = true;
-        if (before != null) {
-          setPosting(true);
-          // A failed event still advances, so a postEvent that rejects can't leave the item locked.
-          try {
-            await before();
-          } catch {
-            // postEvent reports its own failures.
-          }
-        }
-        options.nextOffer(url);
-      },
     },
   };
   return renderItem({ item, options: itemOptions, level, parentIndex, logInfo, logWarn });
@@ -71,22 +64,17 @@ function buildProps({ item, options }) {
   }
 
   if (item.url != null) {
-    const { loading, nextOffer, postEvent } = options;
-    // An item's links stay disabled while its event posts, since nextOffer's loading only starts once the post is done.
-    const busy = loading || scope?.posting;
-    if (busy != null) {
-      props.disabled = busy;
-      props.loading = busy;
+    const { loading, nextOffer } = options;
+    if (loading != null) {
+      props.disabled = loading;
+      props.loading = loading;
     }
-    if (nextOffer != null && scope != null) {
-      const click = item.events?.click;
-      // A failed event still moves the shopper on; postEvent has already reported it.
-      const send = click != null && postEvent != null && holds(click.send_when, scope.fields)
-        ? () => postEvent(click, visibleValues(scope.root, click.fields || [], scope.fields))
-        : null;
-      props.onClick = () => scope.advance(item.url, send);
-    } else if (nextOffer != null) {
-      props.onClick = () => nextOffer(item.url);
+    if (nextOffer != null) {
+      // A link whose click event's `send_when` holds sends that event, with the visible fields it names, as it moves on.
+      const click = scope != null ? item.events?.click : null;
+      props.onClick = click == null || !holds(click.send_when, scope.fields)
+        ? () => nextOffer(item.url)
+        : () => nextOffer(item.url, { event: click, values: visibleValues(scope.root, click.fields || [], scope.fields) });
     }
   }
 

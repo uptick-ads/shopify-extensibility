@@ -1,7 +1,6 @@
 import Generator from "../generation/Generator.jsx";
 
-// `postEvent(event, values)` posts the events a survey item declares; without it the survey still advances but records nothing.
-export default function UptickOffer({ offer, loading, nextOffer, postEvent, children }) {
+export default function UptickOffer({ offer, loading, nextOffer, children }) {
   // If we're loading an offer and haven't had one previously, render loading state
   if (loading === true && offer == null) {
     return (
@@ -35,7 +34,7 @@ export default function UptickOffer({ offer, loading, nextOffer, postEvent, chil
       {
         Generator({
           items: offer?.children,
-          options: { loading, nextOffer, postEvent }
+          options: { loading, nextOffer }
         })
       }
       {children}

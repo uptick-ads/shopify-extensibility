@@ -70,63 +70,39 @@
                       },
                       "children": [
                         {
-                          "type": "button",
+                          "type": "press-button",
                           "name": "survey-reason",
                           "text": "Good fit",
                           "field": {
                             "name": "reason",
                             "value": "good_fit"
-                          },
-                          "attributes": {
-                            "variant": "secondary",
-                            "selected": {
-                              "variant": "primary"
-                            }
                           }
                         },
                         {
-                          "type": "button",
+                          "type": "press-button",
                           "name": "survey-reason",
                           "text": "Not interested",
                           "field": {
                             "name": "reason",
                             "value": "not_relevant"
-                          },
-                          "attributes": {
-                            "variant": "secondary",
-                            "selected": {
-                              "variant": "primary"
-                            }
                           }
                         },
                         {
-                          "type": "button",
+                          "type": "press-button",
                           "name": "survey-reason",
                           "text": "Offer unclear",
                           "field": {
                             "name": "reason",
                             "value": "offer_unclear"
-                          },
-                          "attributes": {
-                            "variant": "secondary",
-                            "selected": {
-                              "variant": "primary"
-                            }
                           }
                         },
                         {
-                          "type": "button",
+                          "type": "press-button",
                           "name": "survey-reason",
                           "text": "Felt like spam",
                           "field": {
                             "name": "reason",
                             "value": "spam"
-                          },
-                          "attributes": {
-                            "variant": "secondary",
-                            "selected": {
-                              "variant": "primary"
-                            }
                           }
                         }
                       ]

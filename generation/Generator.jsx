@@ -52,6 +52,10 @@ function buildProps({ item, options }) {
       if (current === field.value && selected != null) {
         Object.assign(props, selected);
       }
+      // A press button tells assistive technology whether it is pressed, so a picked reason reads as selected.
+      if (item.type === "press-button") {
+        props.pressed = current === field.value;
+      }
       props.onClick = () => scope.setField(field.name, current === field.value ? null : field.value);
     } else {
       props.value = current ?? "";

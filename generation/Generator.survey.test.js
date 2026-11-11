@@ -12,8 +12,8 @@ const surveyResponse = require("./fixtures/survey_decline.json");
 const survey = surveyResponse.data[0];
 const nextOfferUrl = survey.children[0].children[0].data.next_offer;
 
-const reason = (container, label) => Array.from(container.querySelectorAll("s-button")).find((node) => node.textContent === label);
-const submit = (container, label) => reason(container, label);
+const reason = (container, label) => Array.from(container.querySelectorAll("s-press-button")).find((node) => node.textContent === label);
+const submit = (container, label) => Array.from(container.querySelectorAll("s-button")).find((node) => node.textContent === label);
 
 describe("survey item", () => {
   let nextOffer;
@@ -33,16 +33,29 @@ describe("survey item", () => {
     expect(postEvent).toHaveBeenCalledTimes(0);
   });
 
-  test("a reason swaps to its selected variant and clears on a second click", () => {
+  test("a reason is pressed while picked, which assistive technology announces, and clears on a second click", () => {
     const { container } = renderSurvey();
-    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("secondary");
-    expect(reason(container, "Felt like spam").hasAttribute("selected")).toBe(false);
+    expect(reason(container, "Felt like spam").hasAttribute("pressed")).toBe(false);
 
     fireEvent.click(reason(container, "Felt like spam"));
-    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("primary");
+    expect(reason(container, "Felt like spam").hasAttribute("pressed")).toBe(true);
+    expect(reason(container, "Good fit").hasAttribute("pressed")).toBe(false);
 
     fireEvent.click(reason(container, "Felt like spam"));
-    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("secondary");
+    expect(reason(container, "Felt like spam").hasAttribute("pressed")).toBe(false);
+  });
+
+  test("a choice that isn't a press button takes its selected attributes while picked", () => {
+    const items = [{ type: "box", data: { target: "item", item_id: "srv_1" }, children: [
+      { type: "button", text: "Spam", field: { name: "reason", value: "spam" }, attributes: { variant: "secondary", selected: { variant: "primary" } } },
+    ] }];
+    const { container } = render(generate({ items, options: { loading: false, nextOffer, postEvent } }));
+    const button = container.querySelector("s-button");
+    expect(button.getAttribute("variant")).toBe("secondary");
+    expect(button.hasAttribute("selected")).toBe(false);
+
+    fireEvent.click(button);
+    expect(button.getAttribute("variant")).toBe("primary");
   });
 
   test("show_when shows the comment box and Report Ad only for the reasons that ask for them", () => {
@@ -116,13 +129,13 @@ describe("survey item", () => {
   test("a different survey in the same place starts with no answers", () => {
     const { container, rerender } = renderSurvey();
     fireEvent.click(reason(container, "Felt like spam"));
-    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("primary");
+    expect(reason(container, "Felt like spam").hasAttribute("pressed")).toBe(true);
 
     const other = JSON.parse(JSON.stringify(survey.children));
     other[0].children[0].data.item_id = "srv_another";
     rerender(generate({ items: other, options: { loading: false, nextOffer, postEvent } }));
 
-    expect(reason(container, "Felt like spam").getAttribute("variant")).toBe("secondary");
+    expect(reason(container, "Felt like spam").hasAttribute("pressed")).toBe(false);
   });
 
   test("leaves out the offer footer", () => {

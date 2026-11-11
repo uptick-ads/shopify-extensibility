@@ -170,29 +170,7 @@ function createApi(includeShopApi = true, { integrationId = null, includeShippin
   return api;
 }
 
-function generateFlowURL(api, placement, integrationID = null) {
-  if (isPresent(integrationID)) {
-    expect(api.flowURL).toBe(`https://api.uptick.com/places/${integrationID}/flows/new`);
-  } else {
-    expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
-  }
-
-  const url = new URL(api.flowURL);
-  url.searchParams.set("placement", placement);
-  url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
-  url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
-  url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
-
-  if (integrationID == null) {
-    url.searchParams.set("no_redirect", "1");
-  }
-
-  return url.toString();
-}
-
-function generateOfferURL(api) {
-  const url = new URL(offerUrlBase);
-
+function addExpectedShopApiParams(url, api) {
   if (api.shopApi?.shop?.id != null) {
     url.searchParams.set("shop_id", api.shopApi.shop.id);
   }
@@ -246,6 +224,33 @@ function generateOfferURL(api) {
   if (api.shopApi?.extension?.apiVersion != null) {
     url.searchParams.set("shop_api_version", api.shopApi.extension.apiVersion);
   }
+}
+
+function generateFlowURL(api, placement, integrationID = null) {
+  if (isPresent(integrationID)) {
+    expect(api.flowURL).toBe(`https://api.uptick.com/places/${integrationID}/flows/new`);
+  } else {
+    expect(api.flowURL).toBe("https://api.uptick.com/places/flows/shopify");
+  }
+
+  const url = new URL(api.flowURL);
+  url.searchParams.set("placement", placement);
+  url.searchParams.set("shop_myshopify_domain", api.shopApi.shop.myshopifyDomain);
+  url.searchParams.set("dl", api.shopApi.shop.storefrontUrl);
+  url.searchParams.set("rl", api.shopApi.shop.storefrontUrl);
+  addExpectedShopApiParams(url, api);
+
+  if (integrationID == null) {
+    url.searchParams.set("no_redirect", "1");
+  }
+
+  return url.toString();
+}
+
+function generateOfferURL(api) {
+  const url = new URL(offerUrlBase);
+
+  addExpectedShopApiParams(url, api);
 
   // Add options to URL
   if (api.options && typeof api.options === "object") {
@@ -406,6 +411,76 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledTimes(0);
       expect(api.captureWarning).toHaveBeenCalledTimes(1);
       expect(api.captureWarning).toHaveBeenCalledWith("Unable to get flow. Response was null.");
+    });
+
+    test("sends customer and name on the flow request so targeting applies", async () => {
+      const api = createApi();
+      api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+      await api.getInitialOffer("order_confirmation");
+
+      const url = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(url.searchParams.get("customer_id")).toBe(String(api.shopApi.buyerIdentity.customer.current.id));
+      expect(url.searchParams.get("first_name")).toBe(api.shopApi.shippingAddress.current.firstName);
+    });
+
+    test("sends a zero total on the flow request so $0 orders can match a route", async () => {
+      const api = createApi();
+      api.shopApi.cost.totalAmount.current.amount = 0;
+      api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+      await api.getInitialOffer("order_confirmation");
+
+      const url = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(url.searchParams.get("total_price")).toBe("0");
+      expect(url.searchParams.get("shipping_price")).toBe("75.32");
+    });
+
+    test("still requests the flow when protected customer data throws", async () => {
+      const api = createApi();
+      Object.defineProperty(api.shopApi, "shippingAddress", { get: () => { throw new Error("Protected customer data"); } });
+      api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+      await api.getInitialOffer("order_confirmation");
+
+      expect(api.fetchResult).toHaveBeenCalledTimes(1);
+      const url = new URL(api.fetchResult.mock.calls[0][0]);
+      expect(url.searchParams.get("placement")).toBe("order_confirmation");
+      expect(url.searchParams.get("customer_id")).toBe(String(api.shopApi.buyerIdentity.customer.current.id));
+      expect(api.captureException).toHaveBeenCalledWith(expect.any(Error), { extra: { message: "Unable to get shop api information" } });
+    });
+
+    describe("discount param", () => {
+      const flowDiscountParam = async (discountApi) => {
+        const api = createApi();
+        Object.assign(api.shopApi, { discountCodes: undefined, discountAllocations: undefined, lines: undefined }, discountApi);
+        api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+        await api.getInitialOffer("order_confirmation");
+
+        return new URL(api.fetchResult.mock.calls[0][0]).searchParams.get("discount");
+      };
+
+      test("is true for a discount code", async () => {
+        expect(await flowDiscountParam({ discountCodes: { current: [{ code: "TEN_PERCENT" }] } })).toBe("true");
+      });
+
+      test("is true for an automatic order discount", async () => {
+        expect(await flowDiscountParam({ discountAllocations: { current: [{ title: "Sale" }] } })).toBe("true");
+      });
+
+      test("is true for a line item discount", async () => {
+        const lines = { current: [{ discountAllocations: [] }, { discountAllocations: [{ title: "Sale" }] }] };
+        expect(await flowDiscountParam({ lines })).toBe("true");
+      });
+
+      test("is false when the order has no discounts", async () => {
+        expect(await flowDiscountParam({ discountCodes: { current: [] }, discountAllocations: { current: [] }, lines: { current: [{ discountAllocations: [] }] } })).toBe("false");
+      });
+
+      test("is omitted when Shopify exposes no discount data", async () => {
+        expect(await flowDiscountParam({})).toBeNull();
+      });
     });
 
     test("if placement is disabled returns with expected warning", async () => {

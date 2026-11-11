@@ -91,6 +91,14 @@ export default class Api {
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
       this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
 
+      // The server selects the flow's offers and route when it creates the flow, so it needs the same params as an offer request.
+      // Best-effort as in getOfferBase, since reading protected customer data can throw and must not block the flow.
+      try {
+        this.addShopApiParams(url);
+      } catch (error) {
+        this.captureException(error, { extra: { message: "Unable to get shop api information" } });
+      }
+
       // Pass editor context if present (theme/checkout editor preview)
       if (this.shopApi?.extension?.editor) {
         // await new Promise(resolve => setTimeout(resolve, 100000));
@@ -182,30 +190,7 @@ export default class Api {
     const url = new URL(offerURL);
 
     try {
-      // Shop information
-      this.addParam(url, this.shopApi?.shop?.id, "shop_id");
-      this.addParam(url, this.shopApi?.shop?.name, "shop_name");
-      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
-      this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
-
-      // Order Price information
-      this.addParam(url, this.shopApi?.orderConfirmation?.current?.number || this.shopApi?.order?.current?.confirmationNumber, "confirmation_number");
-      this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
-      this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
-      this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
-      this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
-
-      // Customer information
-      this.addParam(url, this.shopApi?.buyerIdentity?.customer?.current?.id, "customer_id");
-
-      // Address information (may fail if shop doesn't have access)
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");
-      this.addParam(url, this.shopApi?.shippingAddress?.current?.zip || this.shopApi?.billingAddress?.current?.zip, "zip");
-
-      this.addParam(url, this.shopApi?.extension?.target, "shop_target");
-      this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
-      this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
+      this.addShopApiParams(url);
 
       // Add options to URL
       this.addOptionsToUrl(url);
@@ -344,6 +329,51 @@ export default class Api {
     } catch (error) {
       this.captureException(error, { extra: { message: "Unable to set shop api key", query_param_key, value } });
     }
+  }
+
+  /**
+   * @private Adds the shop, order, and customer params shared by flow and offer requests.
+   */
+  addShopApiParams(url) {
+    // Shop information
+    this.addParam(url, this.shopApi?.shop?.id, "shop_id");
+    this.addParam(url, this.shopApi?.shop?.name, "shop_name");
+    this.addParam(url, this.shopApi?.shop?.storefrontUrl, "dl");
+    this.addParam(url, this.shopApi?.shop?.storefrontUrl, "rl");
+
+    // Order Price information
+    this.addParam(url, this.shopApi?.orderConfirmation?.current?.number || this.shopApi?.order?.current?.confirmationNumber, "confirmation_number");
+    this.addParam(url, this.shopApi?.order?.current?.name, "order_name");
+    this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.currencyCode, "currency");
+    this.addParam(url, this.shopApi?.cost?.totalAmount?.current?.amount, "total_price");
+    this.addParam(url, this.shopApi?.cost?.totalShippingAmount?.current?.amount, "shipping_price");
+    this.addParam(url, this.orderHasDiscount(), "discount");
+
+    // Customer information
+    this.addParam(url, this.shopApi?.buyerIdentity?.customer?.current?.id, "customer_id");
+
+    // Address information (may fail if shop doesn't have access)
+    this.addParam(url, this.shopApi?.shippingAddress?.current?.firstName || this.shopApi?.billingAddress?.current?.firstName, "first_name");
+    this.addParam(url, this.shopApi?.shippingAddress?.current?.countryCode || this.shopApi?.billingAddress?.current?.countryCode, "country_code");
+    this.addParam(url, this.shopApi?.shippingAddress?.current?.zip || this.shopApi?.billingAddress?.current?.zip, "zip");
+
+    this.addParam(url, this.shopApi?.extension?.target, "shop_target");
+    this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
+    this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
+  }
+
+  /**
+   * @private Returns "true" or "false" for discount targeting, or undefined when Shopify exposes no discount data.
+   */
+  orderHasDiscount() {
+    const codes = this.shopApi?.discountCodes?.current;
+    const allocations = this.shopApi?.discountAllocations?.current;
+    const lines = this.shopApi?.lines?.current;
+    if (codes == null && allocations == null && lines == null) return undefined;
+
+    // Automatic discounts have no code, and line item discounts only appear on the line.
+    const discounted = codes?.length > 0 || allocations?.length > 0 || lines?.some((line) => line.discountAllocations?.length > 0);
+    return discounted ? "true" : "false";
   }
 
   /**

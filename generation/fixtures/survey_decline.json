@@ -1,0 +1,267 @@
+{
+  "data": [
+    {
+      "id": "srv_ba312c90-5cf0-4e83-8f2f-a52f817a7aab",
+      "type": "survey",
+      "data": {
+        "rated_offer_id": "8ac2fb80-bc31-4ded-a6b0-606f8a52b9f0",
+        "rated_event_id": "ba312c90-5cf0-4e83-8f2f-a52f817a7aab",
+        "source": "decline"
+      },
+      "events": {
+        "view": {
+          "url": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/events?event_id=ba312c90-5cf0-4e83-8f2f-a52f817a7aab&offer_id=8ac2fb80-bc31-4ded-a6b0-606f8a52b9f0&offer_index=0",
+          "ev": "survey_viewed"
+        }
+      },
+      "children": [
+        {
+          "type": "query-container",
+          "children": [
+            {
+              "type": "box",
+              "name": "content",
+              "attributes": {
+                "border": "base",
+                "borderRadius": "base"
+              },
+              "data": {
+                "target": "item",
+                "item_type": "survey",
+                "item_id": "srv_ba312c90-5cf0-4e83-8f2f-a52f817a7aab",
+                "offer_index": 1,
+                "next_offer": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/offers/new?event_id=567fbfbf-be60-40af-ad0c-0e77cb08fc69&index=1&placement=order_confirmation"
+              },
+              "children": [
+                {
+                  "type": "box",
+                  "name": "survey",
+                  "attributes": {
+                    "padding": "large"
+                  },
+                  "children": [
+                    {
+                      "type": "heading",
+                      "name": "survey-headline",
+                      "text": "How did you feel about this Glowbird offer?"
+                    },
+                    {
+                      "type": "box",
+                      "attributes": {
+                        "padding": "small-200 none base none"
+                      },
+                      "children": [
+                        {
+                          "type": "text",
+                          "text": "Pick the main reason — your answer shapes what shows next time.",
+                          "attributes": {
+                            "color": "subdued",
+                            "type": "small"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "stack",
+                      "name": "survey-reasons",
+                      "attributes": {
+                        "direction": "inline",
+                        "gap": "small-200"
+                      },
+                      "children": [
+                        {
+                          "type": "press-button",
+                          "name": "survey-reason",
+                          "text": "Good fit",
+                          "field": {
+                            "name": "reason",
+                            "value": "good_fit"
+                          }
+                        },
+                        {
+                          "type": "press-button",
+                          "name": "survey-reason",
+                          "text": "Not interested",
+                          "field": {
+                            "name": "reason",
+                            "value": "not_relevant"
+                          }
+                        },
+                        {
+                          "type": "press-button",
+                          "name": "survey-reason",
+                          "text": "Offer unclear",
+                          "field": {
+                            "name": "reason",
+                            "value": "offer_unclear"
+                          }
+                        },
+                        {
+                          "type": "press-button",
+                          "name": "survey-reason",
+                          "text": "Felt like spam",
+                          "field": {
+                            "name": "reason",
+                            "value": "spam"
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "box",
+                      "name": "survey-comment",
+                      "show_when": {
+                        "field": "reason",
+                        "in": [
+                          "spam",
+                          "offer_unclear"
+                        ]
+                      },
+                      "attributes": {
+                        "padding": "base none none none"
+                      },
+                      "children": [
+                        {
+                          "type": "text-area",
+                          "field": {
+                            "name": "comment"
+                          },
+                          "attributes": {
+                            "label": "Tell us more (optional)",
+                            "maxLength": 500,
+                            "rows": 3
+                          }
+                        }
+                      ]
+                    },
+                    {
+                      "type": "grid",
+                      "name": "survey-actions",
+                      "attributes": {
+                        "alignItems": "center",
+                        "columnGap": "@container (inline-size > 450px) large, none",
+                        "gridTemplateColumns": "@container (inline-size > 450px) auto auto 1fr, 1fr",
+                        "padding": "base none none none",
+                        "rowGap": "large"
+                      },
+                      "children": [
+                        {
+                          "type": "grid-item",
+                          "children": [
+                            {
+                              "type": "button",
+                              "name": "survey-submit",
+                              "text": "Report Ad",
+                              "url": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/offers/new?event_id=567fbfbf-be60-40af-ad0c-0e77cb08fc69&index=1&placement=order_confirmation",
+                              "show_when": {
+                                "field": "reason",
+                                "in": [
+                                  "spam"
+                                ]
+                              },
+                              "events": {
+                                "click": {
+                                  "url": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/events?event_id=ba312c90-5cf0-4e83-8f2f-a52f817a7aab&offer_id=8ac2fb80-bc31-4ded-a6b0-606f8a52b9f0&offer_index=0",
+                                  "ev": "offer_feedback",
+                                  "fields": [
+                                    "reason",
+                                    "comment"
+                                  ],
+                                  "data": {
+                                    "source": "decline"
+                                  },
+                                  "send_when": {
+                                    "field": "reason",
+                                    "present": true
+                                  }
+                                }
+                              },
+                              "attributes": {
+                                "inlineSize": "fill",
+                                "variant": "primary"
+                              }
+                            },
+                            {
+                              "type": "button",
+                              "name": "survey-submit",
+                              "text": "Give Feedback",
+                              "url": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/offers/new?event_id=567fbfbf-be60-40af-ad0c-0e77cb08fc69&index=1&placement=order_confirmation",
+                              "show_when": {
+                                "field": "reason",
+                                "not_in": [
+                                  "spam"
+                                ]
+                              },
+                              "events": {
+                                "click": {
+                                  "url": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/events?event_id=ba312c90-5cf0-4e83-8f2f-a52f817a7aab&offer_id=8ac2fb80-bc31-4ded-a6b0-606f8a52b9f0&offer_index=0",
+                                  "ev": "offer_feedback",
+                                  "fields": [
+                                    "reason",
+                                    "comment"
+                                  ],
+                                  "data": {
+                                    "source": "decline"
+                                  },
+                                  "send_when": {
+                                    "field": "reason",
+                                    "present": true
+                                  }
+                                }
+                              },
+                              "attributes": {
+                                "inlineSize": "fill",
+                                "variant": "primary"
+                              }
+                            }
+                          ]
+                        },
+                        {
+                          "type": "grid-item",
+                          "children": [
+                            {
+                              "type": "grid",
+                              "attributes": {
+                                "justifyContent": "center"
+                              },
+                              "children": [
+                                {
+                                  "type": "clickable",
+                                  "name": "survey-skip",
+                                  "url": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/offers/new?event_id=567fbfbf-be60-40af-ad0c-0e77cb08fc69&index=1&placement=order_confirmation",
+                                  "attributes": {
+                                    "tone": "neutral"
+                                  },
+                                  "children": [
+                                    {
+                                      "type": "text",
+                                      "text": "Skip",
+                                      "attributes": {
+                                        "color": "subdued"
+                                      }
+                                    }
+                                  ]
+                                }
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "type": "grid-item"
+                        }
+                      ]
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "links": {
+    "flow": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0",
+    "next_offer": "https://api.uptick.com/v1/places/5b70de1c-6bfc-4e87-a2c2-96a1ec753c34/flows/f5e321c5-084d-4faa-978f-e74729400ba0/offers/new?event_id=567fbfbf-be60-40af-ad0c-0e77cb08fc69&index=1&placement=order_confirmation"
+  }
+}

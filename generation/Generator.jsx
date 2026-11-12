@@ -1,12 +1,67 @@
 import { isEmpty } from "../utilities/present.js";
 import { createElement } from "preact";
+import { useRef, useState } from "preact/hooks";
+import { holds, visibleValues } from "./interactions.js";
+import { stageSubmission } from "../services/submission.js";
 
 function resolveTag(type) {
   return type.startsWith("s-") ? type : `s-${type}`;
 }
 
+// An item (`data.target: "item"`) such as the feedback survey owns the values its fields collect, scoped to that one item.
+// It renders its own node again with `itemScope` set, which every node below it reads to find those values.
+function Item({ item, options, level, parentIndex, logInfo, logWarn }) {
+  const [fields, setFields] = useState({});
+  // A ref rather than state, so a second click in the same tick, before `loading` disables the links, already sees the lock.
+  // It never resets: following a link replaces this item, and a new item (keyed by id) starts unlocked.
+  const following = useRef(false);
+  const itemOptions = {
+    ...options,
+    // Every link in the item replaces it, so only the first click goes through; a double click can't send its event twice.
+    // The host's nextOffer only takes a URL, so the click's event is staged for Api.getNextOffer to post.
+    nextOffer: options.nextOffer && ((url, submission = null) => {
+      if (following.current) return;
+      following.current = true;
+      stageSubmission(url, submission);
+      options.nextOffer(url);
+    }),
+    itemScope: {
+      root: item,
+      fields,
+      setField: (name, value) => setFields((current) => ({ ...current, [name]: value })),
+    },
+  };
+  return renderItem({ item, options: itemOptions, level, parentIndex, logInfo, logWarn });
+}
+
 function buildProps({ item, options }) {
-  const props = { ...(item.attributes || {}) };
+  // `selected` holds the attributes a field segment takes while its value is picked, so it never reaches the element.
+  const { selected, ...attributes } = item.attributes || {};
+  const props = { ...attributes };
+  // Fields and click events only work inside an item, which holds the values they read and write.
+  const scope = options.itemScope;
+  const field = scope != null ? item.field : null;
+
+  if (field?.name != null) {
+    const current = scope.fields[field.name];
+    // A field with a `value` is a choice: clicking picks that value, and clicking it again clears it.
+    // A field without one is a text box that stores whatever the shopper types.
+    if (field.value !== undefined) {
+      if (current === field.value && selected != null) {
+        Object.assign(props, selected);
+      }
+      // A press button tells assistive technology whether it is pressed, so a picked reason reads as selected.
+      if (item.type === "press-button") {
+        props.pressed = current === field.value;
+      }
+      props.onClick = () => scope.setField(field.name, current === field.value ? null : field.value);
+    } else {
+      props.value = current ?? "";
+      const update = (event) => scope.setField(field.name, event?.currentTarget?.value ?? event?.target?.value ?? "");
+      props.onInput = update;
+      props.onChange = update;
+    }
+  }
 
   if (item.url != null) {
     const { loading, nextOffer } = options;
@@ -15,11 +70,46 @@ function buildProps({ item, options }) {
       props.loading = loading;
     }
     if (nextOffer != null) {
-      props.onClick = () => nextOffer(item.url);
+      // A link whose click event's `send_when` holds sends that event, with the visible fields it names, as it moves on.
+      const click = scope != null ? item.events?.click : null;
+      props.onClick = click == null || !holds(click.send_when, scope.fields)
+        ? () => nextOffer(item.url)
+        : () => nextOffer(item.url, { event: click, values: visibleValues(scope.root, click.fields || [], scope.fields) });
     }
   }
 
   return props;
+}
+
+function renderItem({ item, options, level, parentIndex, logInfo, logWarn }) {
+  const scope = options.itemScope;
+
+  // An item node seen for the first time goes to Item, which sets up its field values and renders this node again inside that scope.
+  if (scope == null && item.data?.target === "item") {
+    // Keyed by the item's id so a different item in the same place starts with empty fields instead of the last one's answers.
+    return createElement(Item, { key: item.data?.item_id, item, options, level, parentIndex, logInfo, logWarn });
+  }
+
+  // Inside an item, a node whose `show_when` doesn't hold for the current field values renders nothing, nor do its children.
+  if (scope != null && item.show_when != null && !holds(item.show_when, scope.fields)) {
+    return null;
+  }
+
+  let children = [];
+  if (item.children != null && item.children.length > 0) {
+    children = generate({
+      items: item.children,
+      options,
+      level: level + 1,
+      parentIndex,
+      logInfo,
+      logWarn
+    });
+  }
+
+  const tag = resolveTag(item.type);
+  const content = isEmpty(item.text) ? children : item.text;
+  return createElement(tag, buildProps({ item, options }), content);
 }
 
 export default function generate({
@@ -49,21 +139,10 @@ export default function generate({
 
     logInfo && console.info(`Item type of '${item.type}' at index ${keyIndex} for keyName: ${keyName} at level ${level}`);
 
-    let children = [];
-    if (item.children != null && item.children.length > 0) {
-      children = generate({
-        items: item.children,
-        options,
-        level: level + 1,
-        parentIndex: keyIndex,
-        logInfo,
-        logWarn
-      });
+    const element = renderItem({ item, options, level, parentIndex: keyIndex, logInfo, logWarn });
+    if (element != null) {
+      elements.push(element);
     }
-
-    const tag = resolveTag(item.type);
-    const content = isEmpty(item.text) ? children : item.text;
-    elements.push(createElement(tag, buildProps({ item, options }), content));
   }
 
   if (elements == null || elements.length === 0) {

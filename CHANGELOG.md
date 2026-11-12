@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.11.12+1] - 2026-11-12
+
+### 🚀 Added
+- Render the feedback survey from the next-offer response
+
 ## [2026.11.11+2] - 2026-11-11
 
 ### 🐛 Fixed

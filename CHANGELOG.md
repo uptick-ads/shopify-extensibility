@@ -1,5 +1,14 @@
 # Changelog
 
+## [2026.11.19+3] - 2026-11-19
+
+### ✨ Changed
+- Merge remote-tracking branch 'origin/main' into HEAD
+- Merge remote-tracking branch 'origin/main' into HEAD
+
+### Chore
+- *(deps-dev)* Bump zod from 4.4.3 to 4.6.7
+
 ## [2026.11.19+2] - 2026-11-19
 
 ### 🔧 Miscellaneous

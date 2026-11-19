@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.11.19+2] - 2026-11-19
+
+### 🔧 Miscellaneous
+- Hold Preact majors in Dependabot until Shopify moves
+
 ## [2026.11.19+1] - 2026-11-19
 
 ### Chore

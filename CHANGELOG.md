@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026.11.19+1] - 2026-11-19
+
+### Chore
+- *(deps-dev)* Bump the babel group with 2 updates
+- *(deps-dev)* Bump @testing-library/preact from 3.2.4 to 3.2.6
+- *(deps-dev)* Bump the lint-toolchain group with 4 updates
+
 ## [2026.11.12+1] - 2026-11-12
 
 ### 🚀 Added

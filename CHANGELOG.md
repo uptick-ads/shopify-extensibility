@@ -1,5 +1,12 @@
 # Changelog
 
+## [2026.11.19+4] - 2026-11-19
+
+### Chore
+- *(deps)* Bump softprops/action-gh-release
+- *(deps-dev)* Bump @babel/core from 8.0.9 to 8.1.2 in the babel group
+- *(deps-dev)* Bump the lint-toolchain group with 6 updates
+
 ## [2026.11.19+3] - 2026-11-19
 
 ### ✨ Changed

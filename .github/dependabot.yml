@@ -14,6 +14,12 @@ updates:
     directory: "/"
     schedule:
       interval: monthly
+    ignore:
+      # Track the Preact major that Shopify's ui-extensions package and CLI
+      # extension templates use (still ^10.10 as of 2026-10). Third parties
+      # embed this package, so only move majors when Shopify does.
+      - dependency-name: "preact"
+        update-types: ["version-update:semver-major"]
     groups:
       # Babel core and presets share a peer-major and must be validated together.
       babel:

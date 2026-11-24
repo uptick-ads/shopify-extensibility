@@ -1,5 +1,10 @@
 # Changelog
 
+## [2026.11.24+1] - 2026-11-24
+
+### 🔧 Miscellaneous
+- [sc-6354] Move to Shopify UI extensions 2026-10
+
 ## [2026.11.19+4] - 2026-11-19
 
 ### Chore

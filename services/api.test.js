@@ -452,6 +452,158 @@ describe("api", () => {
       expect(api.captureException).toHaveBeenCalledWith(expect.any(Error), { extra: { message: "Unable to get shop api information" } });
     });
 
+    describe("request body", () => {
+      const gmailCanonical = "d6117306485ed0e50afab3ac871e98f81699151f30281527d63ff5f233656c69";
+      const gmailBasic = "5f0d1df1fc49e30424381b57b1d4c73e067772a4267dde043a19b026935602c8";
+      const exampleCanonical = "86e0b9e56c17cc4d12387e1949b85053fbe73bc3ce5a1188713a9d300cc6133d";
+      const exampleBasic = "c3374bcfe3572e09f37602e0e179782352c5e117a4a3767824abbaa21bbdef8b";
+
+      const createdFlowUrl = "https://api.uptick.com/v1/places/place-id/flows/new?placement=order_confirmation";
+
+      // The first request resolves the place and hands back the flow_url that creates the flow.
+      const flowRequest = async (email, { integrationId = null } = {}) => {
+        const api = createApi(true, { integrationId });
+        api.shopApi.buyerIdentity.email = { current: email };
+        api.fetchResult = jest.fn()
+          .mockResolvedValueOnce([{ flow_url: createdFlowUrl }, {}])
+          .mockResolvedValueOnce([null, {}]);
+
+        await api.getInitialOffer("order_confirmation");
+
+        expect(api.fetchResult).toHaveBeenCalledTimes(2);
+        const [url, options] = api.fetchResult.mock.calls[0];
+        const [createUrl, createOptions] = api.fetchResult.mock.calls[1];
+        return { api, url, options, createUrl, createOptions };
+      };
+
+      test("posts both hashes to the flow_url for a Gmail address", async () => {
+        const { api, url, options, createUrl, createOptions } = await flowRequest("  Jane.Doe+Promo@Gmail.com ");
+
+        expect(url).toBe(generateFlowURL(api, "order_confirmation"));
+        expect(options).toStrictEqual({ setLoader: api.noop });
+        expect(createUrl).toBe(createdFlowUrl);
+        expect(createOptions.method).toBe("POST");
+        expect(Object.fromEntries(createOptions.body)).toStrictEqual({ email_sha256: gmailCanonical, email_sha256_basic: gmailBasic });
+      });
+
+      test("posts one hash when both forms match", async () => {
+        const { createOptions } = await flowRequest("  Jane.Doe@Example.com ");
+
+        expect(createOptions.method).toBe("POST");
+        expect(Object.fromEntries(createOptions.body)).toStrictEqual({ email_sha256: exampleCanonical });
+      });
+
+      test("posts both hashes for any address with a +tag", async () => {
+        const { createOptions } = await flowRequest("  Jane.Doe+Promo@Example.com ");
+
+        expect(Object.fromEntries(createOptions.body)).toStrictEqual({ email_sha256: exampleCanonical, email_sha256_basic: exampleBasic });
+      });
+
+      test("asks a host with an integration id for the flow_url so the body isn't lost to a redirect", async () => {
+        const { api, url, options, createUrl, createOptions } = await flowRequest("jane@example.com", { integrationId: "place-id" });
+
+        const expectedUrl = new URL(generateFlowURL(api, "order_confirmation", "place-id"));
+        expectedUrl.searchParams.set("no_redirect", "1");
+        expect(url).toBe(expectedUrl.toString());
+        expect(options).toStrictEqual({ setLoader: api.noop });
+        expect(createUrl).toBe(createdFlowUrl);
+        expect(createOptions.method).toBe("POST");
+        expect(createOptions.body.has("email_sha256")).toBe(true);
+      });
+
+      test("leaves a host with an integration id on the redirect when there is no body", async () => {
+        const { api, url, createOptions } = await flowRequest(undefined, { integrationId: "place-id" });
+
+        expect(url).toBe(generateFlowURL(api, "order_confirmation", "place-id"));
+        expect(createOptions).toStrictEqual({ setLoader: api.noop });
+      });
+
+      test.each([
+        [undefined],
+        [""],
+        ["not-an-email"],
+      ])("stays a GET with no body when the email is %p", async (email) => {
+        const { api, url, options, createOptions } = await flowRequest(email);
+
+        expect(url).toBe(generateFlowURL(api, "order_confirmation"));
+        expect(options).toStrictEqual({ setLoader: api.noop });
+        expect(createOptions).toStrictEqual({ setLoader: api.noop });
+        expect(api.captureException).toHaveBeenCalledTimes(0);
+      });
+
+      test("stays a GET when reading the email throws, and reports nothing from the error", async () => {
+        const api = createApi();
+        Object.defineProperty(api.shopApi.buyerIdentity, "email", { get: () => { throw new Error("Unable to read jane@example.com"); } });
+        api.fetchResult = jest.fn().mockResolvedValue([null, {}]);
+
+        await api.getInitialOffer("order_confirmation");
+
+        expect(api.fetchResult).toHaveBeenCalledTimes(1);
+        expect(api.fetchResult.mock.calls[0][1]).toStrictEqual({ setLoader: api.noop });
+        expect(api.captureException).toHaveBeenCalledTimes(1);
+        expect(api.captureException).toHaveBeenCalledWith(new Error("Unable to build flow request body"));
+        expect(api.captureException.mock.calls[0][0].message).toBe("Unable to build flow request body");
+        expect(api.captureException.mock.calls[0]).toHaveLength(1);
+      });
+
+      test("stays a GET without Web Crypto", async () => {
+        const replaced = jest.replaceProperty(globalThis, "crypto", undefined);
+
+        try {
+          const { api, createOptions } = await flowRequest("jane@example.com");
+
+          expect(createOptions).toStrictEqual({ setLoader: api.noop });
+        } finally {
+          replaced.restore();
+        }
+      });
+
+      test("keeps the email and its hashes out of every URL and error report", async () => {
+        const email = "Jane.Doe+Promo@Gmail.com";
+        const api = createApi();
+        api.shopApi.buyerIdentity.email = { current: email };
+        const fetchFunction = jest.fn()
+          .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ flow_url: createdFlowUrl }) })
+          .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ links: { next_offer: offerUrlBase } }) })
+          .mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error", url: offerUrlBase, json: jest.fn() });
+        api.fetchFunction = fetchFunction;
+
+        const result = await api.getInitialOffer("order_confirmation");
+
+        expect(result).toBe(false);
+        expect(fetchFunction).toHaveBeenCalledTimes(3);
+        expect(fetchFunction.mock.calls.map(([, options]) => options.method)).toStrictEqual(["GET", "POST", "GET"]);
+        expect(fetchFunction.mock.calls[0][1].body).toBeUndefined();
+        expect(fetchFunction.mock.calls[2][1].body).toBeUndefined();
+
+        const secrets = [email, email.toLowerCase(), "Jane.Doe", gmailCanonical, gmailBasic];
+        const exposed = JSON.stringify([
+          fetchFunction.mock.calls.map(([url]) => decodeURIComponent(url)),
+          api.captureException.mock.calls,
+        ]);
+        expect(api.captureException).toHaveBeenCalledTimes(1);
+        secrets.forEach((secret) => expect(exposed).not.toContain(secret));
+      });
+
+      test("keeps the hashes out of the report when the flow request fails", async () => {
+        const api = createApi();
+        api.shopApi.buyerIdentity.email = { current: "Jane.Doe+Promo@Gmail.com" };
+        api.fetchFunction = jest.fn()
+          .mockResolvedValueOnce({ ok: true, status: 200, json: async () => ({ flow_url: createdFlowUrl }) })
+          .mockResolvedValueOnce({ ok: false, status: 500, statusText: "Server Error", url: createdFlowUrl, json: jest.fn() });
+
+        const result = await api.getInitialOffer("order_confirmation");
+
+        expect(result).toBe(false);
+        expect(api.fetchFunction.mock.calls[1][1].method).toBe("POST");
+        expect(api.captureException).toHaveBeenCalledTimes(1);
+        const reported = JSON.stringify(api.captureException.mock.calls);
+        expect(reported).not.toContain(gmailCanonical);
+        expect(reported).not.toContain(gmailBasic);
+        expect(reported).not.toContain("Promo");
+      });
+    });
+
     describe("discount param", () => {
       const flowDiscountParam = async (discountApi) => {
         const api = createApi();

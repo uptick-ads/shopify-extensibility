@@ -1,4 +1,5 @@
 import { isEmpty, isPresent } from "../utilities/present.js";
+import { emailHashes } from "../utilities/hashing.js";
 import { takeSubmission } from "./submission.js";
 import {
   buildFetchFailureContext,
@@ -111,6 +112,13 @@ export default class Api {
       }
 
       this.setLoading(true);
+      // Body fields go on the request that creates the flow, which is the flow_url the first request hands back.
+      // Asking for no_redirect makes every host get that flow_url, since a followed redirect would drop the body.
+      const body = await this.flowRequestBody();
+      if (body != null) {
+        url.searchParams.set("no_redirect", "1");
+      }
+
       const [flow, flowContext] = await this.fetchResult(url.toString(), { setLoader: this.noop });
       this.flow = flow;
       if (this.handleFetchResultContext(flowContext)) {
@@ -120,7 +128,8 @@ export default class Api {
       // Handle no_redirect response — follow flow_url if present
       if (isPresent(this.flow?.flow_url)) {
         const flowUrl = this.flow.flow_url;
-        const [redirectFlow, redirectFlowContext] = await this.fetchResult(flowUrl, { setLoader: this.noop });
+        const flowOptions = body == null ? { setLoader: this.noop } : { method: "POST", setLoader: this.noop, body };
+        const [redirectFlow, redirectFlowContext] = await this.fetchResult(flowUrl, flowOptions);
         this.flow = redirectFlow;
         if (this.handleFetchResultContext(redirectFlowContext)) {
           return false;
@@ -403,6 +412,32 @@ export default class Api {
     this.addParam(url, this.shopApi?.extension?.target, "shop_target");
     this.addParam(url, this.shopApi?.extension?.version, "shop_script_version");
     this.addParam(url, this.shopApi?.extension?.apiVersion, "shop_api_version");
+  }
+
+  /**
+   * @private Builds the form body for the flow request, or null when there is nothing to send in one.
+   * Hashes of the buyer's email go here and never in a URL, and the email itself is never sent.
+   */
+  async flowRequestBody() {
+    // Best-effort: reading protected customer data can throw, and the flow must still be created without it.
+    try {
+      const hashes = emailHashes(this.shopApi?.buyerIdentity?.email?.current);
+      if (hashes == null) {
+        return null;
+      }
+
+      const body = new URLSearchParams();
+      body.set("email_sha256", hashes.canonical);
+      // The two forms only differ for an address with a +tag or a Gmail address with dots.
+      if (hashes.basic !== hashes.canonical) {
+        body.set("email_sha256_basic", hashes.basic);
+      }
+      return body;
+    } catch {
+      // The original error is left out on purpose, since its message could carry the email.
+      this.captureException(new Error("Unable to build flow request body"));
+      return null;
+    }
   }
 
   /**

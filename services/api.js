@@ -421,7 +421,7 @@ export default class Api {
   async flowRequestBody() {
     // Best-effort: reading protected customer data can throw, and the flow must still be created without it.
     try {
-      const hashes = await emailHashes(this.shopApi?.buyerIdentity?.email?.current);
+      const hashes = emailHashes(this.shopApi?.buyerIdentity?.email?.current);
       if (hashes == null) {
         return null;
       }

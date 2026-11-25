@@ -546,13 +546,13 @@ describe("api", () => {
         expect(api.captureException.mock.calls[0]).toHaveLength(1);
       });
 
-      test("stays a GET without Web Crypto", async () => {
+      test("still posts the hashes where the sandbox has no Web Crypto", async () => {
         const replaced = jest.replaceProperty(globalThis, "crypto", undefined);
 
         try {
-          const { api, createOptions } = await flowRequest("jane@example.com");
+          const { createOptions } = await flowRequest("  Jane.Doe+Promo@Gmail.com ");
 
-          expect(createOptions).toStrictEqual({ setLoader: api.noop });
+          expect(Object.fromEntries(createOptions.body)).toStrictEqual({ email_sha256: gmailCanonical, email_sha256_basic: gmailBasic });
         } finally {
           replaced.restore();
         }

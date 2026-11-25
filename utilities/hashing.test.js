@@ -15,10 +15,33 @@ describe("sha256Hex", () => {
     expect(await sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
 
-  test("returns null without Web Crypto", async () => {
+  test.each([
+    ["", "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"],
+    ["abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq", "248d6a61d20638b8e5c026930c3e6039a33ce45964ff2167f6ecedd419db06c1"],
+  ])("matches the standard vector for %p", (value, expected) => {
+    expect(sha256Hex(value)).toBe(expected);
+  });
+
+  test.each([
+    ["jane@example.com"],
+    ["jos\u00e9@example.com"],
+    ["\u65e5\u672c\u8a9e@example.jp"],
+    ["\ud83d\ude00".repeat(40)],
+    ["a".repeat(55)],
+    ["a".repeat(56)],
+    ["a".repeat(64)],
+    ["a".repeat(1000)],
+  ])("matches Web Crypto for %p", async (value) => {
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    const expected = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+
+    expect(sha256Hex(value)).toBe(expected);
+  });
+
+  test("needs no Web Crypto", () => {
     jest.replaceProperty(globalThis, "crypto", undefined);
 
-    expect(await sha256Hex("abc")).toBeNull();
+    expect(sha256Hex("abc")).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
   });
 });
 
@@ -64,11 +87,5 @@ describe("emailHashes", () => {
     [12345],
   ])("returns null for %p", async (email) => {
     expect(await emailHashes(email)).toBeNull();
-  });
-
-  test("returns null without Web Crypto", async () => {
-    jest.replaceProperty(globalThis, "crypto", undefined);
-
-    expect(await emailHashes("jane@example.com")).toBeNull();
   });
 });
